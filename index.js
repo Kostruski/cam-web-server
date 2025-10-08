@@ -148,7 +148,7 @@ app.get('/api/status', async (req, res) => {
     try {
       modelInfo = await torchserveClient.getModelInfo();
     } catch (err) {
-      addLog('Failed to get model info from TorchServe', 'WARN');
+      // Silently fail - model info not critical for status endpoint
     }
 
     let torchserveHealth = null;
@@ -315,9 +315,11 @@ app.get('/api/camera/status', async (req, res) => {
 // Camera MJPEG stream
 app.get('/api/camera/stream', (req, res) => {
   try {
+    addLog('Starting camera MJPEG stream...');
     const stream = cameraService.startStream();
 
     if (!stream) {
+      addLog('Failed to start camera stream - no stream returned', 'ERROR');
       return res.status(503).json({ error: 'Failed to start camera stream' });
     }
 
@@ -327,9 +329,20 @@ app.get('/api/camera/stream', (req, res) => {
       'Connection': 'keep-alive'
     });
 
+    addLog('Camera stream started, piping to response');
     stream.pipe(res);
 
+    stream.on('error', (err) => {
+      addLog(`Stream pipe error: ${err.message}`, 'ERROR');
+    });
+
     req.on('close', () => {
+      addLog('Client disconnected, stopping camera stream');
+      cameraService.stopStream();
+    });
+
+    req.on('error', (err) => {
+      addLog(`Request error: ${err.message}`, 'ERROR');
       cameraService.stopStream();
     });
 
@@ -389,9 +402,9 @@ app.post('/api/camera/preview/start', (req, res) => {
 });
 
 // Stop camera preview
-app.post('/api/camera/preview/stop', (req, res) => {
+app.post('/api/camera/preview/stop', async (req, res) => {
   try {
-    const result = cameraService.stopPreview();
+    const result = await cameraService.stopPreview();
     if (result.success) {
       addLog('Camera preview stopped');
     }

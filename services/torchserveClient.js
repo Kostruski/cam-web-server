@@ -64,6 +64,24 @@ class TorchServeClient {
     } = options;
 
     try {
+      // Validate image buffer
+      if (!imageBuffer || !Buffer.isBuffer(imageBuffer)) {
+        throw new Error('Invalid image buffer provided');
+      }
+
+      if (imageBuffer.length === 0) {
+        throw new Error('Image buffer is empty');
+      }
+
+      if (imageBuffer.length > 50 * 1024 * 1024) { // 50MB limit
+        throw new Error(`Image too large: ${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB (max 50MB)`);
+      }
+
+      // Validate threshold
+      if (typeof threshold !== 'number' || threshold < 0 || threshold > 1) {
+        throw new Error(`Invalid threshold: ${threshold} (must be 0-1)`);
+      }
+
       // Convert image buffer to base64
       const imageBase64 = imageBuffer.toString('base64');
 
@@ -74,7 +92,15 @@ class TorchServeClient {
         include_overlay: includeOverlay
       };
 
-      console.log(`[TorchServe] Sending prediction request (threshold: ${threshold}, overlay: ${includeOverlay})`);
+      const payloadSize = JSON.stringify(payload).length;
+      console.log(`[TorchServe] Sending prediction request:`);
+      console.log(`  - Image size: ${(imageBuffer.length / 1024).toFixed(2)}KB`);
+      console.log(`  - Payload size: ${(payloadSize / 1024).toFixed(2)}KB`);
+      console.log(`  - Threshold: ${threshold}`);
+      console.log(`  - Include overlay: ${includeOverlay}`);
+      console.log(`  - URL: ${this.predictUrl}`);
+
+      const startTime = Date.now();
 
       // Send POST request to TorchServe
       const response = await fetch(this.predictUrl, {
@@ -83,11 +109,15 @@ class TorchServeClient {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload),
-        timeout: 30000 // 30 second timeout for inference
+        timeout: 60000 // 60 second timeout for inference (increased from 30s)
       });
+
+      const requestTime = Date.now() - startTime;
+      console.log(`[TorchServe] Request completed in ${requestTime}ms (status: ${response.status})`);
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`[TorchServe] Error response:`, errorText);
         throw new Error(`TorchServe error (${response.status}): ${errorText}`);
       }
 
@@ -99,6 +129,10 @@ class TorchServeClient {
       return this.parseResponse(result);
 
     } catch (error) {
+      if (error.type === 'request-timeout') {
+        console.error(`[TorchServe] Request timed out after ${error.timeout || 60000}ms`);
+        throw new Error(`Prediction service timed out. The service may be slow or unavailable.`);
+      }
       console.error(`[TorchServe] Prediction failed:`, error);
       throw new Error(`Prediction failed: ${error.message}`);
     }
@@ -142,7 +176,7 @@ class TorchServeClient {
 
       return null;
     } catch (error) {
-      console.error('[TorchServe] Failed to get model info:', error);
+      // Silently fail - connection errors are expected when TorchServe is not running locally
       return null;
     }
   }

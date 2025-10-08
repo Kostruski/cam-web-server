@@ -8,7 +8,7 @@ let detectionStatsInterval;
 document.addEventListener('DOMContentLoaded', () => {
     updateStatus();
     statusInterval = setInterval(updateStatus, 2000);
-    healthInterval = setInterval(checkHealth, 5000);
+    healthInterval = setInterval(checkHealth, 300000); // Check every 5 minutes
     setupTestImageUpload();
     setupOverlayToggle();
     checkCameraStatus();
@@ -162,18 +162,23 @@ async function startCameraPreview() {
     const stopBtn = document.getElementById('stopPreviewBtn');
 
     try {
+        console.log('[Preview] Starting camera preview...');
+
         const response = await fetch('/api/camera/preview/start', { method: 'POST' });
         const result = await response.json();
 
         if (result.success) {
-            overlay.innerHTML = '<span class="icon camera-icon" style="color: #4caf50;">videocam</span><p>Preview running on display</p>';
+            overlay.innerHTML = '<span class="icon camera-icon" style="color: #4caf50;">videocam</span><p>Preview running on Raspberry Pi display</p><p class="text-muted" style="font-size: 0.9em;">Check your HDMI monitor</p>';
             startBtn.classList.add('hidden');
             stopBtn.classList.remove('hidden');
             showAlert('Camera preview started on display', 'success');
+            console.log('[Preview] Preview started successfully');
         } else {
             showAlert('Failed to start preview: ' + (result.error || 'Unknown error'), 'error');
+            console.error('[Preview] Failed to start:', result);
         }
     } catch (error) {
+        console.error('[Preview] Exception:', error);
         showAlert('Preview error: ' + error.message, 'error');
     }
 }
@@ -184,29 +189,37 @@ async function stopCameraPreview() {
     const stopBtn = document.getElementById('stopPreviewBtn');
 
     try {
+        console.log('[Preview] Stopping camera preview...');
+
         const response = await fetch('/api/camera/preview/stop', { method: 'POST' });
         const result = await response.json();
 
         if (result.success) {
-            overlay.innerHTML = '<span class="icon camera-icon">videocam_off</span><p>Camera preview shows on physical display</p><p class="text-muted" style="font-size: 0.9em;">Use rpicam-hello for live preview</p>';
+            overlay.innerHTML = '<span class="icon camera-icon">videocam_off</span><p>Preview shows on Raspberry Pi display</p><p class="text-muted" style="font-size: 0.9em;">Connect a monitor via HDMI to see live camera feed</p>';
             startBtn.classList.remove('hidden');
             stopBtn.classList.add('hidden');
             showAlert('Camera preview stopped', 'success');
+            console.log('[Preview] Preview stopped successfully');
         }
     } catch (error) {
+        console.error('[Preview] Stop error:', error);
         showAlert('Stop preview error: ' + error.message, 'error');
-        showAlert('Failed to start camera preview', 'error');
-    };
+    }
 }
-
-// stopCameraPreview is now defined above as async function
 
 async function captureAndTest() {
     const threshold = parseFloat(document.getElementById('threshold').value) || 0.7;
     const includeOverlay = document.getElementById('includeOverlay').checked;
+    const captureBtn = document.getElementById('captureBtn');
 
     try {
-        showAlert('Capturing and analyzing...', 'success');
+        console.log('[Capture] Starting capture and test...');
+
+        // Disable button to prevent double-clicks
+        captureBtn.disabled = true;
+        captureBtn.innerHTML = '<span class="icon rotating">sync</span> Capturing...';
+
+        showAlert('Stopping preview and capturing...', 'info');
 
         const response = await fetch('/api/camera/capture', {
             method: 'POST',
@@ -220,14 +233,22 @@ async function captureAndTest() {
         const result = await response.json();
 
         if (response.ok) {
+            console.log('[Capture] Capture successful, displaying result');
             displayPredictionResult(result);
             showAlert('Prediction complete!', 'success');
             document.getElementById('step2').classList.add('completed');
         } else {
             showAlert('Capture failed: ' + result.error, 'error');
+            console.error('[Capture] Error:', result);
         }
     } catch (error) {
         showAlert('Error: ' + error.message, 'error');
+        console.error('[Capture] Exception:', error);
+    } finally {
+        // Re-enable button
+        captureBtn.disabled = false;
+        captureBtn.innerHTML = '<span class="icon">camera</span> Take Picture';
+        console.log('[Capture] Button re-enabled');
     }
 }
 
