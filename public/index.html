@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Anomaly Detector - Industrial Vision System</title>
+
+	<!-- Self-hosted Material Icons (requires font download) -->
+	<link rel="stylesheet" href="/css/material-icons.css">
+
+	<!-- Self-hosted styles -->
+	<link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+	<!-- Header -->
+	<header class="header">
+		<div class="container">
+			<div class="header-content">
+				<div>
+					<h1 class="header-title">
+						<span class="icon">search</span>
+						Anomaly Detector
+					</h1>
+					<p class="header-subtitle">Industrial Vision System Configuration</p>
+				</div>
+			</div>
+		</div>
+	</header>
+
+	<!-- Main Container -->
+	<div class="container main-content">
+
+		<!-- Alert Box -->
+		<div id="alertBox"></div>
+
+		<!-- Tab Navigation -->
+		<div class="tab-navigation">
+			<button class="tab-button active" onclick="switchTab('detection')">
+				<span class="icon">analytics</span>
+				Detection
+			</button>
+			<button class="tab-button" onclick="switchTab('datacollection')">
+				<span class="icon">photo_library</span>
+				Data Collection
+			</button>
+		</div>
+
+		<!-- Detection Tab -->
+		<div id="detectionTab" class="tab-content active">
+
+		<!-- Status Cards -->
+		<div class="status-cards">
+			<div class="card">
+				<div class="card-label">Prediction Service</div>
+				<div class="card-value" id="torchserveStatus">
+					<span class="icon icon-loading rotating">sync</span>
+					<span class="text-muted">Checking...</span>
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="card-label">Configuration</div>
+				<div class="card-value" id="configStatus">
+					<span class="icon icon-error">close</span>
+					<span>Not Set</span>
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="card-label">Camera</div>
+				<div class="card-value" id="cameraStatus">
+					<span class="icon icon-loading rotating">sync</span>
+					<span class="text-muted">Checking...</span>
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="card-label">Detection Stats</div>
+				<div class="card-value" id="detectionStatsCard">
+					<span class="icon">analytics</span>
+					<span id="statsText">Idle</span>
+				</div>
+			</div>
+		</div>
+
+		<!-- Step 1: Configure Settings -->
+		<div class="step" id="step1">
+			<div class="step-header">
+				<div class="step-number">1</div>
+				<h2 class="step-title">Configure Detection Settings</h2>
+			</div>
+
+			<div class="form-grid">
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon icon-small">videocam</span>
+						Camera Resolution
+					</label>
+					<select id="resolution" class="form-input">
+						<option value="4608x2592">4608 × 2592 (12MP - Full)</option>
+						<option value="3840x2160">3840 × 2160 (4K UHD)</option>
+						<option value="2560x1440">2560 × 1440 (QHD)</option>
+						<option value="1920x1080" selected>1920 × 1080 (Full HD)</option>
+						<option value="1280x720">1280 × 720 (HD)</option>
+						<option value="960x540">960 × 540 (qHD)</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon icon-small">timer</span>
+						Detection Interval (seconds)
+					</label>
+					<input type="number" id="detectionInterval" value="5" min="1" max="60" class="form-input">
+					<p class="form-hint">Time between image captures during continuous detection</p>
+				</div>
+
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon icon-small">tune</span>
+						Detection Threshold (0.0 - 1.0)
+					</label>
+					<input type="number" id="threshold" value="0.7" min="0" max="1" step="0.05" class="form-input">
+				</div>
+
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon icon-small">visibility</span>
+						Show Anomaly Overlay
+					</label>
+					<div class="toggle-container">
+						<label class="toggle-switch">
+							<input type="checkbox" id="includeOverlay">
+							<span class="toggle-slider"></span>
+						</label>
+						<span class="toggle-label" id="overlayLabel">Disabled</span>
+					</div>
+					<p class="form-hint">Display heatmap and segmentation mask visualization</p>
+				</div>
+			</div>
+
+			<div class="form-grid">
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon icon-small">email</span>
+						Alert Email (optional)
+					</label>
+					<input type="text" id="alertEmail" placeholder="operator@company.com" class="form-input">
+				</div>
+			</div>
+
+			<button onclick="saveConfig()" class="btn btn-primary">
+				<span class="icon">save</span>
+				Save Configuration
+			</button>
+		</div>
+
+		<!-- Step 2: Camera Preview & Test -->
+		<div class="step" id="step2">
+			<div class="step-header">
+				<div class="step-number">2</div>
+				<h2 class="step-title">Camera Preview & Testing</h2>
+			</div>
+
+			<p class="step-description">
+				View live camera feed and test detection by capturing frames.
+				Position the camera to see your production line, then place test items to verify detection.
+			</p>
+
+			<!-- Camera Preview -->
+			<div class="camera-preview-container">
+				<div class="camera-preview" id="cameraPreviewBox">
+					<div class="camera-overlay" id="cameraOverlay">
+						<span class="icon camera-icon">videocam_off</span>
+						<p>Camera preview shows on physical display</p>
+						<p class="text-muted" style="font-size: 0.9em;">Use rpicam-hello for live preview</p>
+					</div>
+				</div>
+
+				<div class="camera-controls">
+					<button onclick="startCameraPreview()" id="startPreviewBtn" class="btn btn-primary">
+						<span class="icon">videocam</span>
+						Start Preview (on Display)
+					</button>
+					<button onclick="stopCameraPreview()" id="stopPreviewBtn" class="btn btn-danger hidden">
+						<span class="icon">videocam_off</span>
+						Stop Preview
+					</button>
+					<button onclick="captureAndTest()" id="captureBtn" class="btn btn-success">
+						<span class="icon">camera</span>
+						Take Picture
+					</button>
+				</div>
+			</div>
+
+			<!-- Alternative: Upload Test Image -->
+			<div class="upload-section">
+				<h3 class="upload-section-title">Or Upload Test Image</h3>
+				<div class="upload-zone upload-zone-small" id="testImageZone">
+					<span class="icon upload-icon-small">image</span>
+					<p class="upload-title">Drop test image here</p>
+					<p class="upload-subtitle">Supported: JPG, PNG, BMP</p>
+				</div>
+				<input type="file" id="testImageInput" accept="image/*" class="hidden">
+			</div>
+
+			<!-- Captured Frame & Result -->
+			<div id="captureResult" class="hidden capture-result">
+				<div class="capture-grid">
+					<div class="capture-image-box">
+						<h3 class="capture-title">Captured Frame</h3>
+						<img id="capturedImage" src="" alt="Captured frame" class="captured-image">
+					</div>
+
+					<div class="prediction-result-box">
+						<h3 class="result-title">
+							<span class="icon">analytics</span>
+							Prediction Result
+						</h3>
+						<div class="result-grid">
+							<div class="result-card">
+								<div class="result-label">Anomaly Score</div>
+								<div class="result-value result-value-primary" id="anomalyScore">-</div>
+							</div>
+							<div class="result-card">
+								<div class="result-label">Classification</div>
+								<div class="result-value" id="anomalyClass">-</div>
+							</div>
+							<div class="result-card">
+								<div class="result-label">Inference Time</div>
+								<div class="result-value result-value-secondary" id="inferenceTime">-</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Testing Tips -->
+		<div class="step">
+			<div class="camera-tips">
+				<span class="icon">tips_and_updates</span>
+				<div>
+					<strong>Testing Tips:</strong>
+					<ul>
+						<li>Start camera preview on display to verify positioning and lighting</li>
+						<li>Use "Take Picture" to test with normal items - should show NORMAL</li>
+						<li>Test with defective/anomalous items - should show ANOMALY</li>
+						<li>Adjust camera angle or lighting if needed</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+
+		<!-- System Logs -->
+		<div class="step">
+			<div class="step-header">
+				<span class="icon step-icon">terminal</span>
+				<h2 class="step-title">System Logs</h2>
+			</div>
+
+			<div id="logs" class="logs">
+				<div class="log-entry log-muted">Waiting for activity...</div>
+			</div>
+		</div>
+
+		</div> <!-- End Detection Tab -->
+
+		<!-- Data Collection Tab -->
+		<div id="datacollectionTab" class="tab-content">
+
+			<!-- Collection Status Card -->
+			<div class="collection-status-card" id="collectionStatusCard">
+				<div class="collection-status-header">
+					<h3>Collection Status</h3>
+					<span class="collection-badge" id="collectionBadge">No Active Collection</span>
+				</div>
+				<div id="collectionProgress" class="hidden">
+					<div class="progress-info">
+						<span id="collectedCount">0</span> / <span id="totalCount">0</span> images collected
+					</div>
+					<div class="progress-bar-container">
+						<div class="progress-bar" id="progressBar" style="width: 0%"></div>
+					</div>
+					<div class="collection-details">
+						<div><strong>Folder:</strong> <span id="collectionFolder">-</span></div>
+						<div><strong>Next capture:</strong> <span id="nextCapture">-</span></div>
+					</div>
+					<div class="button-group">
+						<button onclick="pauseCollection()" id="pauseBtn" class="btn btn-warning">
+							<span class="icon">pause</span>
+							Pause
+						</button>
+						<button onclick="resumeCollection()" id="resumeBtn" class="btn btn-success hidden">
+							<span class="icon">play_arrow</span>
+							Resume
+						</button>
+						<button onclick="cancelCollection()" class="btn btn-danger">
+							<span class="icon">cancel</span>
+							Cancel Collection
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Schedule New Collection -->
+			<div class="step">
+				<div class="step-header">
+					<div class="step-number">1</div>
+					<h2 class="step-title">Schedule Data Collection</h2>
+				</div>
+
+				<div class="form-grid">
+					<div class="form-group">
+						<label class="form-label">
+							<span class="icon icon-small">camera</span>
+							Total Number of Images
+						</label>
+						<input type="number" id="totalImages" value="1000" min="1" class="form-input">
+					</div>
+
+					<div class="form-group">
+						<label class="form-label">
+							<span class="icon icon-small">videocam</span>
+							Camera Resolution
+						</label>
+						<select id="collectionResolution" class="form-input">
+							<option value="640x480">640 × 480 (VGA)</option>
+							<option value="1280x720" selected>1280 × 720 (HD)</option>
+							<option value="1920x1080">1920 × 1080 (Full HD)</option>
+						</select>
+					</div>
+				</div>
+
+				<!-- Calendar Selection Type -->
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon icon-small">event</span>
+						Schedule Type
+					</label>
+					<div class="toggle-container">
+						<label class="radio-option">
+							<input type="radio" name="scheduleType" value="dates" checked onchange="updateScheduleType()">
+							<span>Specific Dates</span>
+						</label>
+						<label class="radio-option">
+							<input type="radio" name="scheduleType" value="weekdays" onchange="updateScheduleType()">
+							<span>Days of Week</span>
+						</label>
+					</div>
+				</div>
+
+				<!-- Specific Dates Selection -->
+				<div id="specificDatesSection" class="form-group">
+					<label class="form-label">Select Dates</label>
+					<div class="date-picker-container">
+						<input type="date" id="dateSelector" class="form-input">
+						<button onclick="addDate()" class="btn btn-secondary">
+							<span class="icon">add</span>
+							Add Date
+						</button>
+					</div>
+					<div id="selectedDates" class="selected-items"></div>
+				</div>
+
+				<!-- Days of Week Selection -->
+				<div id="weekdaysSection" class="form-group hidden">
+					<label class="form-label">Select Days of Week</label>
+					<div class="weekday-selector">
+						<label class="checkbox-option">
+							<input type="checkbox" value="1">
+							<span>Monday</span>
+						</label>
+						<label class="checkbox-option">
+							<input type="checkbox" value="2">
+							<span>Tuesday</span>
+						</label>
+						<label class="checkbox-option">
+							<input type="checkbox" value="3">
+							<span>Wednesday</span>
+						</label>
+						<label class="checkbox-option">
+							<input type="checkbox" value="4">
+							<span>Thursday</span>
+						</label>
+						<label class="checkbox-option">
+							<input type="checkbox" value="5">
+							<span>Friday</span>
+						</label>
+						<label class="checkbox-option">
+							<input type="checkbox" value="6">
+							<span>Saturday</span>
+						</label>
+						<label class="checkbox-option">
+							<input type="checkbox" value="0">
+							<span>Sunday</span>
+						</label>
+					</div>
+					<div class="form-group">
+						<label class="form-label">Collection Period</label>
+						<div class="form-grid">
+							<input type="date" id="weekdayStartDate" class="form-input" placeholder="Start Date">
+							<input type="date" id="weekdayEndDate" class="form-input" placeholder="End Date">
+						</div>
+					</div>
+				</div>
+
+				<!-- Hour Slots Selection -->
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon icon-small">schedule</span>
+						Select Hour Slots (6 AM - 6 PM)
+					</label>
+					<div class="hour-slots-grid" id="hourSlots">
+						<!-- Will be generated by JavaScript -->
+					</div>
+				</div>
+
+				<!-- Collection Summary -->
+				<div class="collection-summary" id="collectionSummary">
+					<h4>Collection Summary</h4>
+					<div id="summaryContent">Configure collection parameters above</div>
+				</div>
+
+				<button onclick="saveCollectionSchedule()" class="btn btn-primary btn-large">
+					<span class="icon">save</span>
+					Start Collection
+				</button>
+			</div>
+
+			<!-- Browse Collected Images -->
+			<div class="step">
+				<div class="step-header">
+					<div class="step-number">2</div>
+					<h2 class="step-title">Browse Collected Images</h2>
+				</div>
+
+				<button onclick="loadCollectionFolders()" class="btn btn-secondary">
+					<span class="icon">refresh</span>
+					Refresh Folders
+				</button>
+
+				<div id="collectionFolders" class="collection-folders">
+					<div class="text-muted">No collection folders found</div>
+				</div>
+			</div>
+
+		</div> <!-- End Data Collection Tab -->
+
+	</div>
+
+	<script src="/js/app.js"></script>
+	<script src="/js/datacollection.js"></script>
+</body>
+
+</html>
