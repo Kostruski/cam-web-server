@@ -66,24 +66,58 @@ class TorchServeClient {
     try {
       // Validate image buffer
       if (!imageBuffer || !Buffer.isBuffer(imageBuffer)) {
+        console.error('[TorchServe] Validation failed: Invalid image buffer type');
         throw new Error('Invalid image buffer provided');
       }
 
       if (imageBuffer.length === 0) {
+        console.error('[TorchServe] Validation failed: Empty image buffer');
         throw new Error('Image buffer is empty');
       }
 
+      if (imageBuffer.length < 100) { // Minimum valid image size
+        console.error('[TorchServe] Validation failed: Image buffer too small (likely corrupted)');
+        throw new Error('Image buffer too small - likely corrupted or incomplete');
+      }
+
       if (imageBuffer.length > 50 * 1024 * 1024) { // 50MB limit
+        console.error(`[TorchServe] Validation failed: Image too large (${imageBuffer.length} bytes)`);
         throw new Error(`Image too large: ${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB (max 50MB)`);
+      }
+
+      // Validate image format by checking magic bytes
+      const isValidImage = this.validateImageFormat(imageBuffer);
+      if (!isValidImage) {
+        console.error('[TorchServe] Validation failed: Invalid image format (not JPEG/PNG)');
+        throw new Error('Invalid image format - must be JPEG or PNG');
       }
 
       // Validate threshold
       if (typeof threshold !== 'number' || threshold < 0 || threshold > 1) {
+        console.error(`[TorchServe] Validation failed: Invalid threshold value: ${threshold}`);
         throw new Error(`Invalid threshold: ${threshold} (must be 0-1)`);
       }
 
+      // Validate options types
+      if (typeof includeOverlay !== 'boolean') {
+        console.error('[TorchServe] Validation failed: includeOverlay must be boolean');
+        throw new Error('includeOverlay must be a boolean value');
+      }
+
       // Convert image buffer to base64
-      const imageBase64 = imageBuffer.toString('base64');
+      let imageBase64;
+      try {
+        imageBase64 = imageBuffer.toString('base64');
+      } catch (err) {
+        console.error('[TorchServe] Failed to encode image to base64:', err);
+        throw new Error('Failed to encode image data');
+      }
+
+      // Validate base64 encoding
+      if (!imageBase64 || imageBase64.length === 0) {
+        console.error('[TorchServe] Validation failed: Base64 encoding resulted in empty string');
+        throw new Error('Failed to encode image - empty result');
+      }
 
       // Prepare payload matching your handler's expected format
       const payload = {
@@ -91,6 +125,12 @@ class TorchServeClient {
         threshold: threshold,
         include_overlay: includeOverlay
       };
+
+      // Validate payload structure before sending
+      if (!payload.data || typeof payload.data !== 'string') {
+        console.error('[TorchServe] Validation failed: Invalid payload structure');
+        throw new Error('Invalid payload structure - missing or invalid data field');
+      }
 
       const payloadSize = JSON.stringify(payload).length;
       console.log(`[TorchServe] Sending prediction request:`);
@@ -136,6 +176,25 @@ class TorchServeClient {
       console.error(`[TorchServe] Prediction failed:`, error);
       throw new Error(`Prediction failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Validate image format by checking magic bytes
+   * @param {Buffer} buffer - Image buffer to validate
+   * @returns {boolean} True if valid JPEG or PNG
+   */
+  validateImageFormat(buffer) {
+    // Check JPEG magic bytes (FF D8 FF)
+    if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+      return true;
+    }
+
+    // Check PNG magic bytes (89 50 4E 47 0D 0A 1A 0A)
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
