@@ -88,12 +88,12 @@ class CameraService:
                 cmd = [
                     'rpicam-jpeg',
                     '--output', temp_file,
-                    '--timeout', '2000',  # 2 seconds timeout, matching Node.js command
+                    # '--timeout', '0',  # 2 seconds timeout, matching Node.js command
                     '-v', '2',  # Verbose output
                     '--camera', '0',  # Explicitly select camera 0
-                    '-q', '93',  # Set JPEG quality to 93 (default)
-                    '--width', '1920',  # Full HD width
-                    '--height', '1080',  # Full HD height
+                    # '-q', '93',  # Set JPEG quality to 93 (default)
+                    # '--width', '4608',
+                    # '--height', '2592',
                     '--immediate'  # Capture immediately without preview
                 ]
                 print(f"Executing command: {' '.join(cmd)}")  # Debug print

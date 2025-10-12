@@ -58,195 +58,195 @@
 		<!-- Detection Tab -->
 		<div id="detectionTab" class="tab-content active">
 
-		<!-- Status Cards -->
-		<div class="status-cards">
-			<div class="card">
-				<div class="card-label">TorchServe Status</div>
-				<div class="card-value" id="torchserveStatus">
-					<span class="icon icon-loading rotating">sync</span>
-					<span class="text-muted">Checking...</span>
+			<!-- Status Cards -->
+			<div class="status-cards">
+				<div class="card">
+					<div class="card-label">TorchServe Status</div>
+					<div class="card-value" id="torchserveStatus">
+						<span class="icon icon-loading rotating">sync</span>
+						<span class="text-muted">Checking...</span>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-label">Configuration</div>
+					<div class="card-value" id="configStatus">
+						<span class="icon icon-error">close</span>
+						<span>Not Set</span>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-label">Camera</div>
+					<div class="card-value" id="cameraStatus">
+						<span class="icon icon-loading rotating">sync</span>
+						<span class="text-muted">Checking...</span>
+					</div>
 				</div>
 			</div>
 
-			<div class="card">
-				<div class="card-label">Configuration</div>
-				<div class="card-value" id="configStatus">
-					<span class="icon icon-error">close</span>
-					<span>Not Set</span>
-				</div>
-			</div>
-
-			<div class="card">
-				<div class="card-label">Camera</div>
-				<div class="card-value" id="cameraStatus">
-					<span class="icon icon-loading rotating">sync</span>
-					<span class="text-muted">Checking...</span>
-				</div>
-			</div>
-		</div>
-
-		<!-- Step 1: Configure Settings -->
-		<div class="step" id="step1">
-			<div class="step-header">
-				<div class="step-number">1</div>
-				<h2 class="step-title">Configure Detection Settings</h2>
-			</div>
-
-			<div class="form-grid">
-				<div class="form-group">
-					<label class="form-label">
-						<span class="icon icon-small">videocam</span>
-						Camera Resolution
-					</label>
-					<select id="resolution" class="form-input">
-						<option value="640x480">640 × 480 (VGA)</option>
-						<option value="1280x720" selected>1280 × 720 (HD)</option>
-						<option value="1920x1080">1920 × 1080 (Full HD)</option>
-					</select>
+			<!-- Step 1: Configure Settings -->
+			<div class="step" id="step1">
+				<div class="step-header">
+					<div class="step-number">1</div>
+					<h2 class="step-title">Configure Detection Settings</h2>
 				</div>
 
-				<div class="form-group">
-					<label class="form-label">
-						<span class="icon icon-small">speed</span>
-						Frame Rate (FPS)
-					</label>
-					<input type="number" id="fps" value="10" min="1" max="30" class="form-input">
-				</div>
-
-				<div class="form-group">
-					<label class="form-label">
-						<span class="icon icon-small">tune</span>
-						Detection Threshold (0.0 - 1.0)
-					</label>
-					<input type="number" id="threshold" value="0.7" min="0" max="1" step="0.05" class="form-input">
-				</div>
-
-				<div class="form-group">
-					<label class="form-label">
-						<span class="icon icon-small">visibility</span>
-						Show Anomaly Overlay
-					</label>
-					<div class="toggle-container">
-						<label class="toggle-switch">
-							<input type="checkbox" id="includeOverlay">
-							<span class="toggle-slider"></span>
+				<div class="form-grid">
+					<div class="form-group">
+						<label class="form-label">
+							<span class="icon icon-small">videocam</span>
+							Camera Resolution
 						</label>
-						<span class="toggle-label" id="overlayLabel">Disabled</span>
-					</div>
-					<p class="form-hint">Display heatmap and segmentation mask visualization</p>
-				</div>
-			</div>
-
-			<div class="form-grid">
-				<div class="form-group">
-					<label class="form-label">
-						<span class="icon icon-small">email</span>
-						Alert Email (optional)
-					</label>
-					<input type="text" id="alertEmail" placeholder="operator@company.com" class="form-input">
-				</div>
-			</div>
-
-			<button onclick="saveConfig()" class="btn btn-primary">
-				<span class="icon">save</span>
-				Save Configuration
-			</button>
-		</div>
-
-		<!-- Step 2: Upload Test Image -->
-		<div class="step" id="step2">
-			<div class="step-header">
-				<div class="step-number">2</div>
-				<h2 class="step-title">Test Anomaly Detection</h2>
-			</div>
-
-			<p class="step-description">
-				Upload images to test anomaly detection using the configured threshold.
-			</p>
-
-			<!-- Upload or Capture Test Image -->
-			<div class="upload-section">
-				<div class="upload-zone upload-zone-small" id="testImageZone">
-					<span class="icon upload-icon-small">image</span>
-					<p class="upload-title">Drop test image here</p>
-					<p class="upload-subtitle">Supported: JPG, PNG, BMP</p>
-				</div>
-				<input type="file" id="testImageInput" accept="image/*" class="hidden">
-
-				<div class="button-group mt-2">
-					<button onclick="takeTestImage()" class="btn btn-secondary">
-						<span class="icon">camera_alt</span>
-						Take Image
-					</button>
-				</div>
-			</div>
-
-			<!-- Test Image & Result -->
-			<div id="captureResult" class="hidden capture-result">
-				<div class="capture-grid">
-					<div class="capture-image-box">
-						<h3 class="capture-title">Uploaded Image</h3>
-						<img id="capturedImage" src="" alt="Uploaded frame" class="captured-image">
+						<select id="resolution" class="form-input">
+							<option value="640x480">640 × 480 (VGA)</option>
+							<option value="1280x720" selected>1280 × 720 (HD)</option>
+							<option value="1920x1080">1920 × 1080 (Full HD)</option>
+						</select>
 					</div>
 
-					<div class="prediction-result-box">
-						<h3 class="result-title">
-							<span class="icon">analytics</span>
-							Prediction Result
-						</h3>
-						<div class="result-grid">
-							<div class="result-card">
-								<div class="result-label">Anomaly Score</div>
-								<div class="result-value result-value-primary" id="anomalyScore">-</div>
-							</div>
-							<div class="result-card">
-								<div class="result-label">Classification</div>
-								<div class="result-value" id="anomalyClass">-</div>
-							</div>
-							<div class="result-card">
-								<div class="result-label">Inference Time</div>
-								<div class="result-value result-value-secondary" id="inferenceTime">-</div>
+					<div class="form-group">
+						<label class="form-label">
+							<span class="icon icon-small">speed</span>
+							Frame Rate (FPS)
+						</label>
+						<input type="number" id="fps" value="10" min="1" max="30" class="form-input">
+					</div>
+
+					<div class="form-group">
+						<label class="form-label">
+							<span class="icon icon-small">tune</span>
+							Detection Threshold (0.0 - 1.0)
+						</label>
+						<input type="number" id="threshold" value="0.5" min="0" max="1" step="0.05" class="form-input">
+					</div>
+
+					<div class="form-group">
+						<label class="form-label">
+							<span class="icon icon-small">visibility</span>
+							Show Anomaly Overlay
+						</label>
+						<div class="toggle-container">
+							<label class="toggle-switch">
+								<input type="checkbox" id="includeOverlay">
+								<span class="toggle-slider"></span>
+							</label>
+							<span class="toggle-label" id="overlayLabel">Disabled</span>
+						</div>
+						<p class="form-hint">Display heatmap and segmentation mask visualization</p>
+					</div>
+				</div>
+
+				<div class="form-grid">
+					<div class="form-group">
+						<label class="form-label">
+							<span class="icon icon-small">email</span>
+							Alert Email (optional)
+						</label>
+						<input type="text" id="alertEmail" placeholder="operator@company.com" class="form-input">
+					</div>
+				</div>
+
+				<button onclick="saveConfig()" class="btn btn-primary">
+					<span class="icon">save</span>
+					Save Configuration
+				</button>
+			</div>
+
+			<!-- Step 2: Upload Test Image -->
+			<div class="step" id="step2">
+				<div class="step-header">
+					<div class="step-number">2</div>
+					<h2 class="step-title">Test Anomaly Detection</h2>
+				</div>
+
+				<p class="step-description">
+					Upload images to test anomaly detection using the configured threshold.
+				</p>
+
+				<!-- Upload or Capture Test Image -->
+				<div class="upload-section">
+					<div class="upload-zone upload-zone-small" id="testImageZone">
+						<span class="icon upload-icon-small">image</span>
+						<p class="upload-title">Drop test image here</p>
+						<p class="upload-subtitle">Supported: JPG, PNG, BMP</p>
+					</div>
+					<input type="file" id="testImageInput" accept="image/*" class="hidden">
+
+					<div class="button-group mt-2">
+						<button onclick="takeTestImage()" class="btn btn-secondary">
+							<span class="icon">camera_alt</span>
+							Take Image
+						</button>
+					</div>
+				</div>
+
+				<!-- Test Image & Result -->
+				<div id="captureResult" class="hidden capture-result">
+					<div class="capture-grid">
+						<div class="capture-image-box">
+							<h3 class="capture-title">Uploaded Image</h3>
+							<img id="capturedImage" src="" alt="Uploaded frame" class="captured-image">
+						</div>
+
+						<div class="prediction-result-box">
+							<h3 class="result-title">
+								<span class="icon">analytics</span>
+								Prediction Result
+							</h3>
+							<div class="result-grid">
+								<div class="result-card">
+									<div class="result-label">Anomaly Score</div>
+									<div class="result-value result-value-primary" id="anomalyScore">-</div>
+								</div>
+								<div class="result-card">
+									<div class="result-label">Classification</div>
+									<div class="result-value" id="anomalyClass">-</div>
+								</div>
+								<div class="result-card">
+									<div class="result-label">Inference Time</div>
+									<div class="result-value result-value-secondary" id="inferenceTime">-</div>
+								</div>
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-		</div>
 
-		<!-- Step 3: Start Detection -->
-		<div class="step" id="step3">
-			<div class="step-header">
-				<div class="step-number">3</div>
-				<h2 class="step-title">Start Continuous Detection</h2>
+			<!-- Step 3: Start Detection -->
+			<div class="step" id="step3">
+				<div class="step-header">
+					<div class="step-number">3</div>
+					<h2 class="step-title">Start Continuous Detection</h2>
+				</div>
+
+				<p class="step-description">
+					Start monitoring the camera feed for anomalies.
+				</p>
+
+				<div class="button-group">
+					<button id="startBtn" onclick="startDetector()" disabled class="btn btn-success btn-large">
+						<span class="icon">play_arrow</span>
+						Start Detection
+					</button>
+					<button id="stopBtn" onclick="stopDetector()" disabled class="btn btn-danger btn-large">
+						<span class="icon">stop</span>
+						Stop Detection
+					</button>
+				</div>
 			</div>
 
-			<p class="step-description">
-				Start monitoring the camera feed for anomalies.
-			</p>
+			<!-- System Logs -->
+			<div class="step">
+				<div class="step-header">
+					<span class="icon step-icon">terminal</span>
+					<h2 class="step-title">System Logs</h2>
+				</div>
 
-			<div class="button-group">
-				<button id="startBtn" onclick="startDetector()" disabled class="btn btn-success btn-large">
-					<span class="icon">play_arrow</span>
-					Start Detection
-				</button>
-				<button id="stopBtn" onclick="stopDetector()" disabled class="btn btn-danger btn-large">
-					<span class="icon">stop</span>
-					Stop Detection
-				</button>
+				<div id="logs" class="logs">
+					<div class="log-entry log-muted">Waiting for activity...</div>
+				</div>
 			</div>
-		</div>
-
-		<!-- System Logs -->
-		<div class="step">
-			<div class="step-header">
-				<span class="icon step-icon">terminal</span>
-				<h2 class="step-title">System Logs</h2>
-			</div>
-
-			<div id="logs" class="logs">
-				<div class="log-entry log-muted">Waiting for activity...</div>
-			</div>
-		</div>
 
 		</div> <!-- End Detection Tab -->
 

@@ -175,7 +175,7 @@ def test_prediction():
 
         image_buffer = file.read()
 
-        threshold = float(request.form.get('threshold', 0.7))
+        threshold = float(request.form.get('threshold', 0.5))
         include_overlay = request.form.get('includeOverlay', 'false').lower() == 'true'
 
         import time
@@ -217,7 +217,7 @@ def start_detector():
         add_log('Detector started')
 
         fps = config.get('fps', 10)
-        threshold = config.get('threshold', 0.7)
+        threshold = config.get('threshold', 0.5)
 
         add_log(f'Monitoring at {fps} FPS with threshold {threshold}')
 
@@ -297,7 +297,7 @@ def camera_capture():
         add_log('Frame captured, sending to TorchServe...')
 
         data = request.json or {}
-        threshold = data.get('threshold', 0.7)
+        threshold = data.get('threshold', 0.5)
         include_overlay = data.get('includeOverlay', False)
 
         import time
@@ -338,7 +338,7 @@ def take_single_image():
         add_log('Single image captured')
 
         data = request.json or {}
-        threshold = data.get('threshold', 0.7)
+        threshold = data.get('threshold', 0.5)
         include_overlay = data.get('includeOverlay', False)
 
         import time
