@@ -84,22 +84,43 @@ class CameraService:
 
         try:
             if self.is_raspberry_pi_camera():
-                # Use raspistill for Pi camera
-                subprocess.run([
-                    'raspistill',
-                    '-w', str(self.width),
-                    '-h', str(self.height),
-                    '-o', temp_file,
-                    '-t', '100',  # 100ms timeout
-                    '-n',  # No preview
-                    '-e', 'jpg'
-                ], check=True, capture_output=True)
+                # Use rpicam-jpeg for Pi camera with comprehensive settings
+                cmd = [
+                    'rpicam-jpeg',
+                    '--output', temp_file,
+                    '--timeout', '2000',  # 2 seconds timeout, matching Node.js command
+                    '-v', '2',  # Verbose output
+                    '--camera', '0',  # Explicitly select camera 0
+                    '-q', '93',  # Set JPEG quality to 93 (default)
+                    '--width', '1920',  # Full HD width
+                    '--height', '1080',  # Full HD height
+                    '--immediate'  # Capture immediately without preview
+                ]
+                print(f"Executing command: {' '.join(cmd)}")  # Debug print
+
+                try:
+                    result = subprocess.run(cmd,
+                                            capture_output=True,
+                                            text=True,
+                                            check=True)  # Will raise CalledProcessError if non-zero return
+
+                    print(f"Capture stdout: {result.stdout}")
+                    print(f"Capture stderr: {result.stderr}")
+
+                except subprocess.CalledProcessError as e:
+                    error_msg = (
+                        f"rpicam-jpeg capture failed with return code {e.returncode}\n"
+                        f"Command: {' '.join(cmd)}\n"
+                        f"Stdout: {e.stdout}\n"
+                        f"Stderr: {e.stderr}"
+                    )
+                    print(error_msg)  # Additional debug print
+                    raise Exception(error_msg) from e
             else:
                 # Use ffmpeg for USB camera
                 subprocess.run([
                     'ffmpeg',
                     '-f', 'v4l2',
-                    '-video_size', f'{self.width}x{self.height}',
                     '-i', f'/dev/video{self.camera_index}',
                     '-frames:v', '1',
                     '-y',  # Overwrite
@@ -113,27 +134,32 @@ class CameraService:
             # Clean up temp file
             try:
                 os.unlink(temp_file)
-            except:
-                pass
+            except Exception as cleanup_err:
+                print(f"Warning: Could not remove temp file {temp_file}: {cleanup_err}")
+
+            if not image_buffer:
+                raise Exception('Captured image is empty')
 
             return image_buffer
 
         except subprocess.CalledProcessError as e:
             raise Exception(f'Capture failed: {e}')
+        except FileNotFoundError as e:
+            raise Exception(f'Camera capture command not found: {e}. Ensure rpicam-jpeg or ffmpeg is installed.')
         except Exception as e:
-            raise Exception(f'Failed to read captured frame: {e}')
+            raise Exception(f'Failed to capture or read frame: {e}')
 
     def check_availability(self):
         """Check if camera is available"""
         try:
             if self.is_raspberry_pi_camera():
-                # Check if raspistill exists
-                result = subprocess.run(['which', 'raspistill'],
+                # Check if rpicam-jpeg exists
+                result = subprocess.run(['which', 'rpicam-jpeg'],
                                        capture_output=True, text=True)
                 if result.returncode == 0:
                     return {'available': True, 'type': 'raspberrypi'}
                 else:
-                    return {'available': False, 'error': 'raspistill not found'}
+                    return {'available': False, 'error': 'rpicam-jpeg not found'}
             else:
                 # Check if camera device exists
                 device_path = f'/dev/video{self.camera_index}'

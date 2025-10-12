@@ -150,6 +150,38 @@ function setupTestImageUpload() {
     });
 }
 
+async function takeTestImage() {
+    try {
+        showAlert('Capturing image...', 'success');
+
+        const threshold = parseFloat(document.getElementById('threshold').value) || 0.7;
+        const includeOverlay = document.getElementById('includeOverlay').checked;
+
+        const response = await fetch('/api/camera/take_image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                threshold: threshold,
+                includeOverlay: includeOverlay
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            // Assuming the response contains the image data directly
+            result.image = `data:image/jpeg;base64,${result.image}`;
+            displayPredictionResult(result);
+            showAlert('Image captured and analyzed!', 'success');
+            document.getElementById('step2').classList.add('completed');
+        } else {
+            showAlert('Image capture failed: ' + result.error, 'error');
+        }
+    } catch (error) {
+        showAlert('Error: ' + error.message, 'error');
+    }
+}
+
 async function handleTestImageUpload(file) {
     const formData = new FormData();
     formData.append('image', file);

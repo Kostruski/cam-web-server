@@ -164,7 +164,7 @@
 				Upload images to test anomaly detection using the configured threshold.
 			</p>
 
-			<!-- Upload Test Image -->
+			<!-- Upload or Capture Test Image -->
 			<div class="upload-section">
 				<div class="upload-zone upload-zone-small" id="testImageZone">
 					<span class="icon upload-icon-small">image</span>
@@ -172,6 +172,13 @@
 					<p class="upload-subtitle">Supported: JPG, PNG, BMP</p>
 				</div>
 				<input type="file" id="testImageInput" accept="image/*" class="hidden">
+
+				<div class="button-group mt-2">
+					<button onclick="takeTestImage()" class="btn btn-secondary">
+						<span class="icon">camera_alt</span>
+						Take Image
+					</button>
+				</div>
 			</div>
 
 			<!-- Test Image & Result -->

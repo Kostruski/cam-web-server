@@ -320,6 +320,55 @@ def camera_capture():
         add_log(f'Camera capture failed: {error}', 'ERROR')
         return jsonify({'error': str(error)}), 500
 
+# Capture single image without prediction
+@app.route('/api/camera/take_image', methods=['POST'])
+def take_single_image():
+    try:
+        add_log('Capturing single image...')
+
+        # Get camera status first
+        camera_status = camera_service.check_availability()
+        if not camera_status.get('available', False):
+            error_msg = camera_status.get('error', 'Camera not available')
+            add_log(f'Camera not available: {error_msg}', 'ERROR')
+            return jsonify({'error': error_msg, 'camera_status': camera_status}), 400
+
+        image_buffer = camera_service.capture_frame()
+
+        add_log('Single image captured')
+
+        data = request.json or {}
+        threshold = data.get('threshold', 0.7)
+        include_overlay = data.get('includeOverlay', False)
+
+        import time
+        start_time = time.time()
+        result = torchserve_client.predict(image_buffer, {
+            'threshold': threshold,
+            'include_overlay': include_overlay
+        })
+        inference_time = int((time.time() - start_time) * 1000)
+
+        result['inference_time_ms'] = inference_time
+
+        # Base64 encode the image to match frontend expectations
+        image_base64 = base64.b64encode(image_buffer).decode('utf-8')
+        result['image'] = image_base64
+
+        add_log(f'Prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms)')
+
+        return jsonify(result)
+    except Exception as error:
+        add_log(f'Single image capture failed: {error}', 'ERROR')
+        # Provide a more detailed error response
+        return jsonify({
+            'error': str(error),
+            'details': {
+                'camera_status': camera_service.check_availability(),
+                'torchserve_status': torchserve_client.check_health()
+            }
+        }), 500
+
 # ============================================================================
 # COLLECTION ENDPOINTS
 # ============================================================================
