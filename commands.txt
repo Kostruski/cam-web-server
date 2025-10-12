@@ -1,0 +1,42 @@
+docker run -d --name test-web -p 8080:8080 anomaly-web:latest
+
+# Check logs
+docker logs test-web
+
+# Check health
+curl http://localhost:8080/api/health
+
+# Stop and remove
+docker stop test-web
+docker rm test-web
+
+docker build -t anomaly-web:latest .
+
+# Run standalone (for testing)
+docker run -p 8080:8080 \
+  -e PREDICTION_SERVICE_URL=http://host.docker.internal:8081 \
+  -v $(pwd)/../data:/data \
+  anomaly-web:latest
+
+
+
+# Rebuild with the fixed index.js
+docker-compose up --build
+
+docker-compose restart web-server
+
+// start both
+docker-compose up
+
+// stop both
+docker-compose down
+
+# Clean everything
+docker-compose down
+docker system prune -f
+
+# Rebuild
+docker-compose build --no-cache web-server
+
+ /model claude-sonnet-4-5
+ /model claude-3-5-haiku-latest

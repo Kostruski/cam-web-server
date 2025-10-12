@@ -3,12 +3,12 @@
 let selectedDates = [];
 let selectedHours = [];
 let collectionStatusInterval = null;
+let collectionStatusCheckActive = true;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initializeHourSlots();
     loadCollectionStatus();
-    collectionStatusInterval = setInterval(loadCollectionStatus, 3000);
 });
 
 // ============================================================================
@@ -260,7 +260,7 @@ async function saveCollectionSchedule() {
 
         if (response.ok) {
             showAlert('Collection started successfully!', 'success');
-            loadCollectionStatus();
+            resumeCollectionStatusPolling();
         } else {
             showAlert('Failed to start collection: ' + result.error, 'error');
         }
@@ -278,9 +278,38 @@ async function loadCollectionStatus() {
         const response = await fetch('/api/collection/status');
         const status = await response.json();
 
+        // If we got a successful response (200) and collection is NOT active, stop periodic checking
+        if (response.ok && collectionStatusCheckActive && !status.active) {
+            collectionStatusCheckActive = false;
+            if (collectionStatusInterval) {
+                clearInterval(collectionStatusInterval);
+                collectionStatusInterval = null;
+            }
+            console.log('API collection status check successful - periodic polling stopped');
+        }
+
+        // If collection is active, ensure polling continues at reduced frequency
+        if (status.active && !collectionStatusInterval) {
+            collectionStatusCheckActive = true;
+            collectionStatusInterval = setInterval(loadCollectionStatus, 8000); // Check every 8 seconds
+        }
+
         updateCollectionStatusUI(status);
     } catch (error) {
         console.error('Failed to load collection status:', error);
+
+        // If status check is still active and we don't have an interval, start polling at reduced frequency
+        if (collectionStatusCheckActive && !collectionStatusInterval) {
+            collectionStatusInterval = setInterval(loadCollectionStatus, 8000); // Check every 8 seconds instead of 3
+        }
+    }
+}
+
+// Helper function to resume status polling when needed
+function resumeCollectionStatusPolling() {
+    if (!collectionStatusCheckActive) {
+        collectionStatusCheckActive = true;
+        loadCollectionStatus();
     }
 }
 
@@ -343,7 +372,7 @@ async function pauseCollection() {
 
         if (response.ok) {
             showAlert('Collection paused', 'success');
-            loadCollectionStatus();
+            resumeCollectionStatusPolling();
         } else {
             showAlert('Failed to pause: ' + result.error, 'error');
         }
@@ -359,7 +388,7 @@ async function resumeCollection() {
 
         if (response.ok) {
             showAlert('Collection resumed', 'success');
-            loadCollectionStatus();
+            resumeCollectionStatusPolling();
         } else {
             showAlert('Failed to resume: ' + result.error, 'error');
         }
@@ -382,7 +411,7 @@ async function cancelCollection() {
 
         if (response.ok) {
             showAlert('Collection cancelled', 'success');
-            loadCollectionStatus();
+            resumeCollectionStatusPolling();
             if (deleteImages) {
                 loadCollectionFolders();
             }

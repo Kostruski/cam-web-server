@@ -1,18 +1,14 @@
 // Anomaly Detector Web Interface JavaScript
 
 let statusInterval;
-let healthInterval;
-let detectionStatsInterval;
+let statusCheckActive = true;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     updateStatus();
-    statusInterval = setInterval(updateStatus, 2000);
-    healthInterval = setInterval(checkHealth, 300000); // Check every 5 minutes
     setupTestImageUpload();
     setupOverlayToggle();
     checkCameraStatus();
-    checkHealth();
 });
 
 // ============================================================================
@@ -24,6 +20,32 @@ async function updateStatus() {
         const response = await fetch('/api/status');
         const status = await response.json();
 
+        // If we got a successful response (200), stop periodic checking
+        if (response.ok && statusCheckActive) {
+            statusCheckActive = false;
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+            }
+            console.log('API status check successful - periodic polling stopped');
+        }
+
+        // Update header status
+        const headerStatusText = document.getElementById('headerStatusText');
+        if (status.detectorRunning) {
+            headerStatusText.innerHTML = '<span class="status-dot status-dot-green"></span> Running';
+        } else {
+            headerStatusText.innerHTML = '<span class="status-dot status-dot-red"></span> Stopped';
+        }
+
+        // Update TorchServe status
+        const torchserveStatus = document.getElementById('torchserveStatus');
+        if (status.torchserveHealthy) {
+            torchserveStatus.innerHTML = '<span class="icon icon-success">check_circle</span><span>Ready</span>';
+        } else {
+            torchserveStatus.innerHTML = '<span class="icon icon-error">error</span><span>Not Ready</span>';
+        }
+
         // Update config status
         const configStatus = document.getElementById('configStatus');
         if (status.configured) {
@@ -33,13 +55,16 @@ async function updateStatus() {
             configStatus.innerHTML = '<span class="icon icon-error">close</span><span>Not Set</span>';
         }
 
-        // Update detection stats card
-        const statsCard = document.getElementById('statsText');
-        if (status.detectorRunning && status.detectionStats) {
-            const stats = status.detectionStats;
-            statsCard.textContent = `${stats.anomalies} anomalies / ${stats.total} total`;
+        // Update buttons
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        if (status.configured) {
+            startBtn.disabled = status.detectorRunning;
+            stopBtn.disabled = !status.detectorRunning;
         } else {
-            statsCard.textContent = 'Idle';
+            startBtn.disabled = true;
+            stopBtn.disabled = true;
         }
 
         // Update logs
@@ -52,50 +77,11 @@ async function updateStatus() {
         }
     } catch (error) {
         console.error('Status update failed:', error);
-    }
-}
 
-// Check health endpoint - polls remote prediction service /ping
-async function checkHealth() {
-    try {
-        const response = await fetch('/api/health');
-        const health = await response.json();
-
-        const predictionStatus = document.getElementById('torchserveStatus');
-
-        if (health.status === 'healthy' && health.torchserve === 'ok') {
-            predictionStatus.innerHTML = '<span class="icon icon-success">check_circle</span><span>Ready</span>';
-        } else if (health.torchserve === 'unhealthy') {
-            predictionStatus.innerHTML = '<span class="icon icon-error">error</span><span>Not Ready</span>';
-        } else {
-            predictionStatus.innerHTML = '<span class="icon icon-loading rotating">sync</span><span>Checking...</span>';
+        // If status check is still active and we don't have an interval, start polling at reduced frequency
+        if (statusCheckActive && !statusInterval) {
+            statusInterval = setInterval(updateStatus, 5000); // Check every 5 seconds instead of 2
         }
-    } catch (error) {
-        console.error('Health check failed:', error);
-        const predictionStatus = document.getElementById('torchserveStatus');
-        predictionStatus.innerHTML = '<span class="icon icon-error">error</span><span>Error</span>';
-    }
-}
-
-// Update detection stats in real-time
-async function updateDetectionStats() {
-    try {
-        const response = await fetch('/api/detection/stats');
-        const stats = await response.json();
-
-        document.getElementById('statTotal').textContent = stats.total || 0;
-        document.getElementById('statAnomalies').textContent = stats.anomalies || 0;
-        document.getElementById('statNormal').textContent = stats.normal || 0;
-        document.getElementById('statQueue').textContent = stats.queueSize || 0;
-        document.getElementById('statErrors').textContent = stats.errors || 0;
-
-        // Format uptime
-        const uptime = Math.floor((stats.uptime || 0) / 1000);
-        const minutes = Math.floor(uptime / 60);
-        const seconds = uptime % 60;
-        document.getElementById('statUptime').textContent = `${minutes}m ${seconds}s`;
-    } catch (error) {
-        console.error('Failed to update detection stats:', error);
     }
 }
 
@@ -106,9 +92,8 @@ async function updateDetectionStats() {
 async function saveConfig() {
     const config = {
         resolution: document.getElementById('resolution').value,
-        interval: parseInt(document.getElementById('detectionInterval').value) * 1000, // convert to ms
+        fps: parseInt(document.getElementById('fps').value),
         threshold: parseFloat(document.getElementById('threshold').value),
-        includeOverlay: document.getElementById('includeOverlay').checked,
         alertEmail: document.getElementById('alertEmail').value
     };
 
@@ -156,70 +141,58 @@ async function checkCameraStatus() {
     }
 }
 
-async function startCameraPreview() {
+function startCameraPreview() {
+    const streamImg = document.getElementById('cameraStream');
     const overlay = document.getElementById('cameraOverlay');
     const startBtn = document.getElementById('startPreviewBtn');
     const stopBtn = document.getElementById('stopPreviewBtn');
+    const captureBtn = document.getElementById('captureBtn');
 
-    try {
-        console.log('[Preview] Starting camera preview...');
+    // Set stream URL (add timestamp to prevent caching)
+    streamImg.src = `/api/camera/stream?t=${Date.now()}`;
 
-        const response = await fetch('/api/camera/preview/start', { method: 'POST' });
-        const result = await response.json();
+    // Handle load/error
+    streamImg.onload = function() {
+        overlay.classList.add('hidden');
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+        captureBtn.classList.remove('hidden');
+        showAlert('Camera preview started', 'success');
+    };
 
-        if (result.success) {
-            overlay.innerHTML = '<span class="icon camera-icon" style="color: #4caf50;">videocam</span><p>Preview running on Raspberry Pi display</p><p class="text-muted" style="font-size: 0.9em;">Check your HDMI monitor</p>';
-            startBtn.classList.add('hidden');
-            stopBtn.classList.remove('hidden');
-            showAlert('Camera preview started on display', 'success');
-            console.log('[Preview] Preview started successfully');
-        } else {
-            showAlert('Failed to start preview: ' + (result.error || 'Unknown error'), 'error');
-            console.error('[Preview] Failed to start:', result);
-        }
-    } catch (error) {
-        console.error('[Preview] Exception:', error);
-        showAlert('Preview error: ' + error.message, 'error');
-    }
+    streamImg.onerror = function() {
+        overlay.classList.remove('hidden');
+        overlay.innerHTML = '<span class="icon camera-icon">videocam_off</span><p>Failed to start camera</p>';
+        showAlert('Failed to start camera preview', 'error');
+    };
 }
 
-async function stopCameraPreview() {
+function stopCameraPreview() {
+    const streamImg = document.getElementById('cameraStream');
     const overlay = document.getElementById('cameraOverlay');
     const startBtn = document.getElementById('startPreviewBtn');
     const stopBtn = document.getElementById('stopPreviewBtn');
+    const captureBtn = document.getElementById('captureBtn');
 
-    try {
-        console.log('[Preview] Stopping camera preview...');
+    // Stop stream
+    streamImg.src = '';
+    overlay.classList.remove('hidden');
+    overlay.innerHTML = '<span class="icon camera-icon">videocam_off</span><p>Camera preview stopped</p>';
 
-        const response = await fetch('/api/camera/preview/stop', { method: 'POST' });
-        const result = await response.json();
+    // Update buttons
+    startBtn.classList.remove('hidden');
+    stopBtn.classList.add('hidden');
+    captureBtn.classList.add('hidden');
 
-        if (result.success) {
-            overlay.innerHTML = '<span class="icon camera-icon">videocam_off</span><p>Preview shows on Raspberry Pi display</p><p class="text-muted" style="font-size: 0.9em;">Connect a monitor via HDMI to see live camera feed</p>';
-            startBtn.classList.remove('hidden');
-            stopBtn.classList.add('hidden');
-            showAlert('Camera preview stopped', 'success');
-            console.log('[Preview] Preview stopped successfully');
-        }
-    } catch (error) {
-        console.error('[Preview] Stop error:', error);
-        showAlert('Stop preview error: ' + error.message, 'error');
-    }
+    showAlert('Camera preview stopped', 'success');
 }
 
 async function captureAndTest() {
     const threshold = parseFloat(document.getElementById('threshold').value) || 0.7;
     const includeOverlay = document.getElementById('includeOverlay').checked;
-    const captureBtn = document.getElementById('captureBtn');
 
     try {
-        console.log('[Capture] Starting capture and test...');
-
-        // Disable button to prevent double-clicks
-        captureBtn.disabled = true;
-        captureBtn.innerHTML = '<span class="icon rotating">sync</span> Capturing...';
-
-        showAlert('Stopping preview and capturing...', 'info');
+        showAlert('Capturing and analyzing...', 'success');
 
         const response = await fetch('/api/camera/capture', {
             method: 'POST',
@@ -233,22 +206,14 @@ async function captureAndTest() {
         const result = await response.json();
 
         if (response.ok) {
-            console.log('[Capture] Capture successful, displaying result');
             displayPredictionResult(result);
             showAlert('Prediction complete!', 'success');
             document.getElementById('step2').classList.add('completed');
         } else {
             showAlert('Capture failed: ' + result.error, 'error');
-            console.error('[Capture] Error:', result);
         }
     } catch (error) {
         showAlert('Error: ' + error.message, 'error');
-        console.error('[Capture] Exception:', error);
-    } finally {
-        // Re-enable button
-        captureBtn.disabled = false;
-        captureBtn.innerHTML = '<span class="icon">camera</span> Take Picture';
-        console.log('[Capture] Button re-enabled');
     }
 }
 
@@ -453,7 +418,3 @@ function switchTab(tabName) {
     });
     document.getElementById(tabName + 'Tab').classList.add('active');
 }
-
-// ============================================================================
-// REMOVED LED STATUS (no longer needed)
-// ============================================================================
