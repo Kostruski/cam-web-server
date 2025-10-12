@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatus();
     setupTestImageUpload();
     setupOverlayToggle();
-    checkCameraStatus();
 });
 
 // ============================================================================
@@ -114,106 +113,6 @@ async function saveConfig() {
         }
     } catch (error) {
         showAlert('Configuration error: ' + error.message, 'error');
-    }
-}
-
-// ============================================================================
-// CAMERA FUNCTIONS
-// ============================================================================
-
-async function checkCameraStatus() {
-    try {
-        const response = await fetch('/api/camera/status');
-        const status = await response.json();
-
-        const cameraStatus = document.getElementById('cameraStatus');
-        if (status.available) {
-            cameraStatus.innerHTML = '<span class="icon icon-success">check_circle</span><span>Available</span>';
-            console.log('Camera available:', status);
-        } else {
-            cameraStatus.innerHTML = '<span class="icon icon-error">videocam_off</span><span>Not Available</span>';
-            console.warn('Camera not available');
-        }
-    } catch (error) {
-        console.error('Failed to check camera status:', error);
-        const cameraStatus = document.getElementById('cameraStatus');
-        cameraStatus.innerHTML = '<span class="icon icon-error">error</span><span>Error</span>';
-    }
-}
-
-function startCameraPreview() {
-    const streamImg = document.getElementById('cameraStream');
-    const overlay = document.getElementById('cameraOverlay');
-    const startBtn = document.getElementById('startPreviewBtn');
-    const stopBtn = document.getElementById('stopPreviewBtn');
-    const captureBtn = document.getElementById('captureBtn');
-
-    // Set stream URL (add timestamp to prevent caching)
-    streamImg.src = `/api/camera/stream?t=${Date.now()}`;
-
-    // Handle load/error
-    streamImg.onload = function() {
-        overlay.classList.add('hidden');
-        startBtn.classList.add('hidden');
-        stopBtn.classList.remove('hidden');
-        captureBtn.classList.remove('hidden');
-        showAlert('Camera preview started', 'success');
-    };
-
-    streamImg.onerror = function() {
-        overlay.classList.remove('hidden');
-        overlay.innerHTML = '<span class="icon camera-icon">videocam_off</span><p>Failed to start camera</p>';
-        showAlert('Failed to start camera preview', 'error');
-    };
-}
-
-function stopCameraPreview() {
-    const streamImg = document.getElementById('cameraStream');
-    const overlay = document.getElementById('cameraOverlay');
-    const startBtn = document.getElementById('startPreviewBtn');
-    const stopBtn = document.getElementById('stopPreviewBtn');
-    const captureBtn = document.getElementById('captureBtn');
-
-    // Stop stream
-    streamImg.src = '';
-    overlay.classList.remove('hidden');
-    overlay.innerHTML = '<span class="icon camera-icon">videocam_off</span><p>Camera preview stopped</p>';
-
-    // Update buttons
-    startBtn.classList.remove('hidden');
-    stopBtn.classList.add('hidden');
-    captureBtn.classList.add('hidden');
-
-    showAlert('Camera preview stopped', 'success');
-}
-
-async function captureAndTest() {
-    const threshold = parseFloat(document.getElementById('threshold').value) || 0.7;
-    const includeOverlay = document.getElementById('includeOverlay').checked;
-
-    try {
-        showAlert('Capturing and analyzing...', 'success');
-
-        const response = await fetch('/api/camera/capture', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                threshold: threshold,
-                includeOverlay: includeOverlay
-            })
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            displayPredictionResult(result);
-            showAlert('Prediction complete!', 'success');
-            document.getElementById('step2').classList.add('completed');
-        } else {
-            showAlert('Capture failed: ' + result.error, 'error');
-        }
-    } catch (error) {
-        showAlert('Error: ' + error.message, 'error');
     }
 }
 

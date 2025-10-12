@@ -153,47 +153,19 @@
 			</button>
 		</div>
 
-		<!-- Step 2: Camera Preview & Test -->
+		<!-- Step 2: Upload Test Image -->
 		<div class="step" id="step2">
 			<div class="step-header">
 				<div class="step-number">2</div>
-				<h2 class="step-title">Camera Preview & Testing</h2>
+				<h2 class="step-title">Test Anomaly Detection</h2>
 			</div>
 
 			<p class="step-description">
-				View live camera feed and test detection by capturing frames.
-				Position the camera to see your production line, then place test items to verify detection.
+				Upload images to test anomaly detection using the configured threshold.
 			</p>
 
-			<!-- Camera Preview -->
-			<div class="camera-preview-container">
-				<div class="camera-preview" id="cameraPreviewBox">
-					<img id="cameraStream" src="" alt="Camera feed" class="camera-stream">
-					<div class="camera-overlay" id="cameraOverlay">
-						<span class="icon camera-icon">videocam_off</span>
-						<p>Camera preview not started</p>
-					</div>
-				</div>
-
-				<div class="camera-controls">
-					<button onclick="startCameraPreview()" id="startPreviewBtn" class="btn btn-primary">
-						<span class="icon">videocam</span>
-						Start Camera Preview
-					</button>
-					<button onclick="stopCameraPreview()" id="stopPreviewBtn" class="btn btn-danger hidden">
-						<span class="icon">videocam_off</span>
-						Stop Preview
-					</button>
-					<button onclick="captureAndTest()" id="captureBtn" class="btn btn-success hidden">
-						<span class="icon">camera</span>
-						Capture & Test
-					</button>
-				</div>
-			</div>
-
-			<!-- Alternative: Upload Test Image -->
+			<!-- Upload Test Image -->
 			<div class="upload-section">
-				<h3 class="upload-section-title">Or Upload Test Image</h3>
 				<div class="upload-zone upload-zone-small" id="testImageZone">
 					<span class="icon upload-icon-small">image</span>
 					<p class="upload-title">Drop test image here</p>
@@ -202,12 +174,12 @@
 				<input type="file" id="testImageInput" accept="image/*" class="hidden">
 			</div>
 
-			<!-- Captured Frame & Result -->
+			<!-- Test Image & Result -->
 			<div id="captureResult" class="hidden capture-result">
 				<div class="capture-grid">
 					<div class="capture-image-box">
-						<h3 class="capture-title">Captured Frame</h3>
-						<img id="capturedImage" src="" alt="Captured frame" class="captured-image">
+						<h3 class="capture-title">Uploaded Image</h3>
+						<img id="capturedImage" src="" alt="Uploaded frame" class="captured-image">
 					</div>
 
 					<div class="prediction-result-box">
@@ -230,19 +202,6 @@
 							</div>
 						</div>
 					</div>
-				</div>
-			</div>
-
-			<div class="camera-tips">
-				<span class="icon">tips_and_updates</span>
-				<div>
-					<strong>Testing Tips:</strong>
-					<ul>
-						<li>Start camera preview to verify positioning and lighting</li>
-						<li>Place a normal item in view and click "Capture & Test" - should show NORMAL</li>
-						<li>Place a defective/anomalous item and test again - should show ANOMALY</li>
-						<li>Adjust camera angle or lighting if needed before proceeding</li>
-					</ul>
 				</div>
 			</div>
 		</div>
