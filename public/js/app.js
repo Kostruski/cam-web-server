@@ -228,14 +228,26 @@ async function handleTestImageUpload(file) {
 // ============================================================================
 
 function displayPredictionResult(result1, result2) {
-    // Show captured image or overlay if available
+    // Display original image
     const capturedImageEl = document.getElementById('capturedImage');
+    capturedImageEl.src = result1.image;
+
+    // Display Model 1 overlay/heatmap if available
+    const overlay1El = document.getElementById('capturedImageOverlay1');
     if (result1.overlay) {
-        // Display overlay if it was generated
-        capturedImageEl.src = `data:image/png;base64,${result1.overlay}`;
+        overlay1El.src = `data:image/png;base64,${result1.overlay}`;
+        overlay1El.parentElement.style.display = 'block';
     } else {
-        // Display original image
-        capturedImageEl.src = result1.image;
+        overlay1El.parentElement.style.display = 'none';
+    }
+
+    // Display Model 2 overlay/heatmap if available
+    const overlay2El = document.getElementById('capturedImageOverlay2');
+    if (result2.overlay) {
+        overlay2El.src = `data:image/png;base64,${result2.overlay}`;
+        overlay2El.parentElement.style.display = 'block';
+    } else {
+        overlay2El.parentElement.style.display = 'none';
     }
 
     // Show prediction result for Model 1

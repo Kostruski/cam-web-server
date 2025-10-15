@@ -89,7 +89,7 @@ class TorchServeClient:
             # Directly convert image to base64 without preprocessing
             print(f'[TorchServe] Encoding image...')
             image_base64 = base64.b64encode(image_buffer).decode('utf-8')
-            print(f'[TorchServe] Image encoded (base64 length: {len(image_base64)} chars)')
+            print(f'[TorchServe] Image encoded (base64 length: {len(image_base64)} chars, preview: {image_base64[:50]}...)')
 
             # Prepare payload matching handler's expected format
             payload = {
@@ -117,7 +117,15 @@ class TorchServeClient:
                 raise Exception(f'TorchServe error ({response.status_code}): {error_text}')
 
             result = response.json()
-            print(f'[TorchServe] Prediction received: {json.dumps(result, indent=2)}')
+
+            # Create a copy for logging with truncated base64 data
+            result_log = result.copy() if isinstance(result, dict) else result
+            if isinstance(result_log, dict) and 'overlay' in result_log and result_log['overlay']:
+                result_log['overlay'] = result_log['overlay'][:50] + '...' if len(result_log['overlay']) > 50 else result_log['overlay']
+            elif isinstance(result_log, list) and len(result_log) > 0 and isinstance(result_log[0], dict) and 'overlay' in result_log[0] and result_log[0]['overlay']:
+                result_log[0]['overlay'] = result_log[0]['overlay'][:50] + '...' if len(result_log[0]['overlay']) > 50 else result_log[0]['overlay']
+
+            print(f'[TorchServe] Prediction received: {json.dumps(result_log, indent=2)}')
 
             # Parse TorchServe response format
             return self.parse_response(result)
