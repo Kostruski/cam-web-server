@@ -189,63 +189,8 @@
 						<img id="capturedImage" src="" alt="Uploaded frame" class="captured-image">
 					</div>
 
-					<!-- Model 1 Results -->
-					<div class="model-result-row">
-						<div class="prediction-result-box">
-							<h3 class="result-title">
-								<span class="icon">analytics</span>
-								Model 1 - Prediction Result
-							</h3>
-							<div class="result-grid">
-								<div class="result-card">
-									<div class="result-label">Anomaly Score</div>
-									<div class="result-value result-value-primary" id="anomalyScore">-</div>
-								</div>
-								<div class="result-card">
-									<div class="result-label">Classification</div>
-									<div class="result-value" id="anomalyClass">-</div>
-								</div>
-								<div class="result-card">
-									<div class="result-label">Inference Time</div>
-									<div class="result-value result-value-secondary" id="inferenceTime">-</div>
-								</div>
-							</div>
-						</div>
-
-						<div class="capture-image-box" id="overlay1Box" style="display: none;">
-							<h3 class="capture-title">Model 1 - Heatmap</h3>
-							<img id="capturedImageOverlay1" src="" alt="Model 1 overlay" class="captured-image">
-						</div>
-					</div>
-
-					<!-- Model 2 Results -->
-					<div class="model-result-row">
-						<div class="prediction-result-box">
-							<h3 class="result-title">
-								<span class="icon">analytics</span>
-								Model 2 - Prediction Result
-							</h3>
-							<div class="result-grid">
-								<div class="result-card">
-									<div class="result-label">Anomaly Score</div>
-									<div class="result-value result-value-primary" id="anomalyScore2">-</div>
-								</div>
-								<div class="result-card">
-									<div class="result-label">Classification</div>
-									<div class="result-value" id="anomalyClass2">-</div>
-								</div>
-								<div class="result-card">
-									<div class="result-label">Inference Time</div>
-									<div class="result-value result-value-secondary" id="inferenceTime2">-</div>
-								</div>
-							</div>
-						</div>
-
-						<div class="capture-image-box" id="overlay2Box" style="display: none;">
-							<h3 class="capture-title">Model 2 - Heatmap</h3>
-							<img id="capturedImageOverlay2" src="" alt="Model 2 overlay" class="captured-image">
-						</div>
-					</div>
+					<!-- Model Results Container - dynamically populated -->
+					<div id="modelResultsContainer"></div>
 				</div>
 			</div>
 

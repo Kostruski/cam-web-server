@@ -2,6 +2,7 @@
 
 let statusInterval;
 let statusCheckActive = true;
+let currentPredictionResults = null; // Store current prediction results for saving
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -169,10 +170,14 @@ async function takeTestImage() {
         const result = await response.json();
 
         if (response.ok) {
-            // Response now contains model1 and model2
-            result.model1.image = `data:image/jpeg;base64,${result.model1.image}`;
-            result.model2.image = `data:image/jpeg;base64,${result.model2.image}`;
-            displayPredictionResult(result.model1, result.model2);
+            // Response contains model1, model2, etc.
+            // Add data:image prefix to all model images
+            Object.keys(result).forEach(key => {
+                if (result[key].image) {
+                    result[key].image = `data:image/jpeg;base64,${result[key].image}`;
+                }
+            });
+            displayPredictionResult(result);
             showAlert('Image captured and analyzed!', 'success');
             document.getElementById('step2').classList.add('completed');
         } else {
@@ -207,9 +212,11 @@ async function handleTestImageUpload(file) {
             // Create data URL from uploaded file for display
             const reader = new FileReader();
             reader.onload = function(e) {
-                result.model1.image = e.target.result;
-                result.model2.image = e.target.result;
-                displayPredictionResult(result.model1, result.model2);
+                // Set image for all models
+                Object.keys(result).forEach(key => {
+                    result[key].image = e.target.result;
+                });
+                displayPredictionResult(result);
             };
             reader.readAsDataURL(file);
 
@@ -227,80 +234,153 @@ async function handleTestImageUpload(file) {
 // DISPLAY PREDICTION RESULT
 // ============================================================================
 
-function displayPredictionResult(result1, result2) {
-    console.log('Model 1 result:', {
-        has_overlay: !!result1.overlay,
-        overlay_length: result1.overlay ? result1.overlay.length : 0,
-        overlay_preview: result1.overlay ? result1.overlay.substring(0, 50) : 'none'
-    });
-    console.log('Model 2 result:', {
-        has_overlay: !!result2.overlay,
-        overlay_length: result2.overlay ? result2.overlay.length : 0,
-        overlay_preview: result2.overlay ? result2.overlay.substring(0, 50) : 'none'
-    });
+function displayPredictionResult(results) {
+    // Store results globally for saving later
+    currentPredictionResults = results;
 
-    // Display original image
+    // results is an object with keys like 'model1', 'model2', etc.
+    const modelKeys = Object.keys(results).sort();
+
+    console.log('Displaying results for', modelKeys.length, 'models');
+
+    // Display original image from first model
+    const firstModel = results[modelKeys[0]];
     const capturedImageEl = document.getElementById('capturedImage');
-    capturedImageEl.src = result1.image;
+    capturedImageEl.src = firstModel.image;
 
-    // Display Model 1 overlay/heatmap if available
-    const overlay1Box = document.getElementById('overlay1Box');
-    const overlay1El = document.getElementById('capturedImageOverlay1');
-    if (result1.overlay) {
-        overlay1El.src = `data:image/png;base64,${result1.overlay}`;
-        overlay1Box.style.display = 'block';
-        console.log('Model 1 overlay displayed');
-    } else {
-        overlay1Box.style.display = 'none';
-        console.log('Model 1 overlay not available');
+    // Clear and rebuild model results container
+    const container = document.getElementById('modelResultsContainer');
+    container.innerHTML = '';
+
+    // Add save heatmap button at the top if any model has overlay
+    const hasOverlay = modelKeys.some(key => results[key].overlay);
+    if (hasOverlay) {
+        const saveButton = document.createElement('button');
+        saveButton.className = 'btn btn-primary';
+        saveButton.style.marginBottom = '20px';
+        saveButton.innerHTML = '<span class="icon">save</span> Save Heatmaps Locally';
+        saveButton.onclick = saveHeatmapsToCloud;
+        container.appendChild(saveButton);
     }
 
-    // Display Model 2 overlay/heatmap if available
-    const overlay2Box = document.getElementById('overlay2Box');
-    const overlay2El = document.getElementById('capturedImageOverlay2');
-    if (result2.overlay) {
-        overlay2El.src = `data:image/png;base64,${result2.overlay}`;
-        overlay2Box.style.display = 'block';
-        console.log('Model 2 overlay displayed');
-    } else {
-        overlay2Box.style.display = 'none';
-        console.log('Model 2 overlay not available');
-    }
+    // Create a row for each model
+    modelKeys.forEach((key, idx) => {
+        const result = results[key];
+        const modelNum = idx + 1;
 
-    // Show prediction result for Model 1
+        console.log(`${result.label} result:`, {
+            has_overlay: !!result.overlay,
+            overlay_length: result.overlay ? result.overlay.length : 0,
+            overlay_preview: result.overlay ? result.overlay.substring(0, 50) : 'none'
+        });
+
+        // Create model result row
+        const row = document.createElement('div');
+        row.className = 'model-result-row';
+
+        // Create prediction result box
+        const resultBox = document.createElement('div');
+        resultBox.className = 'prediction-result-box';
+        resultBox.innerHTML = `
+            <h3 class="result-title">
+                <span class="icon">analytics</span>
+                ${escapeHtml(result.label)} - Prediction Result
+            </h3>
+            <div class="result-grid">
+                <div class="result-card">
+                    <div class="result-label">Anomaly Score</div>
+                    <div class="result-value result-value-primary">${result.anomaly_score.toFixed(3)}</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-label">Classification</div>
+                    <div class="result-value" style="color: ${result.is_anomaly ? 'var(--danger)' : 'var(--success)'}">
+                        <span class="icon ${result.is_anomaly ? 'icon-error' : 'icon-success'}">${result.is_anomaly ? 'error' : 'check_circle'}</span>
+                        ${result.is_anomaly ? 'ANOMALY' : 'NORMAL'}
+                    </div>
+                </div>
+                <div class="result-card">
+                    <div class="result-label">Inference Time</div>
+                    <div class="result-value result-value-secondary">${result.inference_time_ms.toFixed(0)} ms</div>
+                </div>
+            </div>
+        `;
+        row.appendChild(resultBox);
+
+        // Create overlay box if overlay exists
+        if (result.overlay) {
+            const overlayBox = document.createElement('div');
+            overlayBox.className = 'capture-image-box';
+            overlayBox.innerHTML = `
+                <h3 class="capture-title">${escapeHtml(result.label)} - Heatmap</h3>
+                <img src="data:image/png;base64,${result.overlay}" alt="${escapeHtml(result.label)} overlay" class="captured-image">
+            `;
+            row.appendChild(overlayBox);
+            console.log(`${result.label} overlay displayed`);
+        } else {
+            console.log(`${result.label} overlay not available`);
+        }
+
+        container.appendChild(row);
+    });
+
+    // Show result section
     document.getElementById('captureResult').classList.remove('hidden');
-    document.getElementById('anomalyScore').textContent = result1.anomaly_score.toFixed(3);
-
-    const classEl = document.getElementById('anomalyClass');
-    if (result1.is_anomaly) {
-        classEl.innerHTML = '<span class="icon icon-error">error</span> ANOMALY';
-        classEl.style.color = 'var(--danger)';
-    } else {
-        classEl.innerHTML = '<span class="icon icon-success">check_circle</span> NORMAL';
-        classEl.style.color = 'var(--success)';
-    }
-
-    document.getElementById('inferenceTime').textContent = result1.inference_time_ms.toFixed(0) + ' ms';
-
-    // Show prediction result for Model 2
-    document.getElementById('anomalyScore2').textContent = result2.anomaly_score.toFixed(3);
-
-    const classEl2 = document.getElementById('anomalyClass2');
-    if (result2.is_anomaly) {
-        classEl2.innerHTML = '<span class="icon icon-error">error</span> ANOMALY';
-        classEl2.style.color = 'var(--danger)';
-    } else {
-        classEl2.innerHTML = '<span class="icon icon-success">check_circle</span> NORMAL';
-        classEl2.style.color = 'var(--success)';
-    }
-
-    document.getElementById('inferenceTime2').textContent = result2.inference_time_ms.toFixed(0) + ' ms';
 
     // Scroll to result
     document.getElementById('captureResult').scrollIntoView({
         behavior: 'smooth',
         block: 'nearest'
     });
+}
+
+// ============================================================================
+// SAVE HEATMAPS TO CLOUD STORAGE
+// ============================================================================
+
+async function saveHeatmapsToCloud() {
+    if (!currentPredictionResults) {
+        showAlert('No prediction results available', 'error');
+        return;
+    }
+
+    try {
+        // Prepare data for saving
+        const models = [];
+        Object.keys(currentPredictionResults).forEach(key => {
+            const result = currentPredictionResults[key];
+            if (result.overlay && result.label) {
+                models.push({
+                    overlay: result.overlay,
+                    label: result.label
+                });
+            }
+        });
+
+        if (models.length === 0) {
+            showAlert('No heatmaps available to save', 'error');
+            return;
+        }
+
+        showAlert('Saving heatmaps locally...', 'success');
+
+        const response = await fetch('/api/heatmaps/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ models })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            showAlert(`Successfully saved ${result.count} heatmap(s) locally!`, 'success');
+            console.log('Saved heatmaps:', result.saved);
+        } else {
+            showAlert('Failed to save heatmaps: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Error saving heatmaps: ' + error.message, 'error');
+        console.error('Save heatmaps error:', error);
+    }
 }
 
 // ============================================================================

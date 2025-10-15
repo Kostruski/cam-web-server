@@ -3,9 +3,8 @@ import os
 import json
 from datetime import datetime
 from pathlib import Path
-from werkzeug.utils import secure_filename
 import base64
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from services.camera_service import CameraService
 from services.torchserve_client import TorchServeClient
@@ -19,14 +18,21 @@ MODELS_DIR = os.environ.get('MODELS_DIR', os.path.join(os.path.dirname(__file__)
 CONFIG_DIR = os.environ.get('CONFIG_DIR', os.path.join(os.path.dirname(__file__), '../data/config'))
 LOGS_DIR = os.environ.get('LOGS_DIR', os.path.join(os.path.dirname(__file__), '../data/logs'))
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.path.dirname(__file__), '../data'))
+HEATMAPS_DIR = os.path.join(DATA_DIR, 'heatmaps')
 
-# BASE_URL for remote and local TorchServe endpoints
-BASE_URL = os.environ.get('PREDICTION_SERVICE_URL', 'https://anomalib-serving-360893797389.europe-central2.run.app')
-# BASE_URL = os.environ.get('PREDICTION_SERVICE_URL', 'http://localhost:8080')
-
-# Second model endpoint
-BASE_URL_2 = os.environ.get('PREDICTION_SERVICE_URL_2', 'https://anomalib-l3-l4-360893797389.europe-west4.run.app')
-
+# Models Configuration - Array of models to compare
+MODELS = [
+    {
+        'label': 'L2-L3 corset 0.1',
+        'url': os.environ.get('PREDICTION_SERVICE_URL', 'https://anomalib-serving-360893797389.europe-central2.run.app'),
+        'client': None  # Will be initialized below
+    },
+    {
+        'label': 'L3-L4 corset 0.1',
+        'url': os.environ.get('PREDICTION_SERVICE_URL_2', 'https://anomalib-l3-l4-360893797389.europe-west4.run.app'),
+        'client': None  # Will be initialized below
+    }
+]
 
 # Initialize services
 camera_service = CameraService(
@@ -36,8 +42,10 @@ camera_service = CameraService(
     fps=15
 )
 
-torchserve_client = TorchServeClient(BASE_URL)
-torchserve_client_2 = TorchServeClient(BASE_URL_2)
+# Initialize TorchServe clients for each model
+for model in MODELS:
+    model['client'] = TorchServeClient(model['url'])
+
 collection_scheduler = CollectionScheduler(camera_service, DATA_DIR)
 
 # In-memory state
@@ -56,7 +64,35 @@ def init_directories():
     Path(MODELS_DIR).mkdir(parents=True, exist_ok=True)
     Path(CONFIG_DIR).mkdir(parents=True, exist_ok=True)
     Path(LOGS_DIR).mkdir(parents=True, exist_ok=True)
+    Path(HEATMAPS_DIR).mkdir(parents=True, exist_ok=True)
     add_log('Directories initialized')
+
+# Save heatmap helper
+def save_heatmap(overlay_base64, model_label):
+    """Save heatmap overlay to model-specific folder with timestamp filename"""
+    try:
+        if not overlay_base64:
+            return None
+
+        # Create sanitized folder name from model label
+        folder_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in model_label).strip()
+        folder_path = os.path.join(HEATMAPS_DIR, folder_name)
+        Path(folder_path).mkdir(parents=True, exist_ok=True)
+
+        # Generate timestamp filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]  # milliseconds
+        filename = f'{timestamp}.png'
+        filepath = os.path.join(folder_path, filename)
+
+        # Decode and save base64 image
+        image_data = base64.b64decode(overlay_base64)
+        with open(filepath, 'wb') as f:
+            f.write(image_data)
+
+        return filepath
+    except Exception as e:
+        add_log(f'Failed to save heatmap for {model_label}: {e}', 'ERROR')
+        return None
 
 # Logging helper
 def add_log(message, level='INFO'):
@@ -117,17 +153,19 @@ def get_status():
         model_info = None
         # Model info endpoint removed to avoid unnecessary requests
 
-        torchserve_health = None
-        try:
-            torchserve_health = torchserve_client.check_health()
-        except:
-            pass
-
-        torchserve_health_2 = None
-        try:
-            torchserve_health_2 = torchserve_client_2.check_health()
-        except:
-            pass
+        # Check health for all models
+        models_status = []
+        for model in MODELS:
+            health = None
+            try:
+                health = model['client'].check_health()
+            except:
+                pass
+            models_status.append({
+                'label': model['label'],
+                'url': model['url'],
+                'healthy': health.get('healthy', False) if health else False
+            })
 
         config = {}
         try:
@@ -142,14 +180,11 @@ def get_status():
             'modelUploaded': model_exists,
             'configured': len(config) > 0,
             'modelInfo': model_info,
-            'torchserveHealthy': torchserve_health.get('healthy', False) if torchserve_health else False,
-            'torchserveHealthy2': torchserve_health_2.get('healthy', False) if torchserve_health_2 else False,
+            'models': models_status,
             'lastPrediction': system_state['last_prediction'],
             'uptime': 0,  # Python doesn't have process.uptime() equivalent
             'logs': system_state['logs'][-10:],
-            'config': config,
-            'predictionServiceUrl': BASE_URL,
-            'predictionServiceUrl2': BASE_URL_2
+            'config': config
         })
     except Exception as error:
         return jsonify({'error': str(error)}), 500
@@ -193,39 +228,32 @@ def test_prediction():
 
         import time
 
-        # Run both predictions in parallel using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            # Submit both prediction tasks
-            future1 = executor.submit(
-                lambda: (time.time(), torchserve_client.predict(image_buffer, {
-                    'threshold': threshold,
-                    'include_overlay': include_overlay
-                }))
-            )
-            future2 = executor.submit(
-                lambda: (time.time(), torchserve_client_2.predict(image_buffer, {
-                    'threshold': threshold,
-                    'include_overlay': include_overlay
-                }))
-            )
+        # Run all model predictions in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=len(MODELS)) as executor:
+            # Submit prediction task for each model
+            futures = []
+            for model in MODELS:
+                future = executor.submit(
+                    lambda m=model: (time.time(), m['client'].predict(image_buffer, {
+                        'threshold': threshold,
+                        'include_overlay': include_overlay
+                    }), m['label'])
+                )
+                futures.append(future)
 
-            # Wait for both to complete and collect results
-            start_time_1, result = future1.result()
-            inference_time = int((time.time() - start_time_1) * 1000)
-            result['inference_time_ms'] = inference_time
+            # Wait for all to complete and collect results
+            results = {}
+            for idx, future in enumerate(futures):
+                start_time, result, label = future.result()
+                inference_time = int((time.time() - start_time) * 1000)
+                result['inference_time_ms'] = inference_time
+                result['label'] = label
+                results[f'model{idx + 1}'] = result
 
-            start_time_2, result_2 = future2.result()
-            inference_time_2 = int((time.time() - start_time_2) * 1000)
-            result_2['inference_time_ms'] = inference_time_2
+                add_log(f'{label} prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms, overlay: {"yes" if result.get("overlay") else "no"})')
 
-        add_log(f'Model 1 prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms)')
-        add_log(f'Model 2 prediction: {"ANOMALY" if result_2["is_anomaly"] else "NORMAL"} (score: {result_2["anomaly_score"]:.3f}, time: {inference_time_2}ms)')
-
-        # Return both results
-        return jsonify({
-            'model1': result,
-            'model2': result_2
-        })
+        # Return all results
+        return jsonify(results)
     except Exception as error:
         add_log(f'Prediction failed: {error}', 'ERROR')
         return jsonify({'error': str(error)}), 500
@@ -280,6 +308,41 @@ def stop_detector():
 def get_logs():
     limit = int(request.args.get('limit', 100))
     return jsonify({'logs': system_state['logs'][-limit:]})
+
+# Save heatmaps locally
+@app.route('/api/heatmaps/save', methods=['POST'])
+def save_heatmaps():
+    try:
+        data = request.json
+        if not data or 'models' not in data:
+            return jsonify({'error': 'No model data provided'}), 400
+
+        saved_paths = []
+        for model_data in data['models']:
+            overlay = model_data.get('overlay')
+            label = model_data.get('label')
+
+            if overlay and label:
+                filepath = save_heatmap(overlay, label)
+                if filepath:
+                    saved_paths.append({
+                        'label': label,
+                        'path': filepath
+                    })
+                    add_log(f'Heatmap saved: {filepath}')
+
+        if saved_paths:
+            return jsonify({
+                'success': True,
+                'saved': saved_paths,
+                'count': len(saved_paths)
+            })
+        else:
+            return jsonify({'error': 'No heatmaps were saved'}), 400
+
+    except Exception as error:
+        add_log(f'Failed to save heatmaps: {error}', 'ERROR')
+        return jsonify({'error': str(error)}), 500
 
 # ============================================================================
 # CAMERA ENDPOINTS
@@ -381,41 +444,33 @@ def take_single_image():
         # Base64 encode the image to match frontend expectations
         image_base64 = base64.b64encode(image_buffer).decode('utf-8')
 
-        # Run both predictions in parallel using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            # Submit both prediction tasks
-            future1 = executor.submit(
-                lambda: (time.time(), torchserve_client.predict(image_buffer, {
-                    'threshold': threshold,
-                    'include_overlay': include_overlay
-                }))
-            )
-            future2 = executor.submit(
-                lambda: (time.time(), torchserve_client_2.predict(image_buffer, {
-                    'threshold': threshold,
-                    'include_overlay': include_overlay
-                }))
-            )
+        # Run all model predictions in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=len(MODELS)) as executor:
+            # Submit prediction task for each model
+            futures = []
+            for model in MODELS:
+                future = executor.submit(
+                    lambda m=model: (time.time(), m['client'].predict(image_buffer, {
+                        'threshold': threshold,
+                        'include_overlay': include_overlay
+                    }), m['label'])
+                )
+                futures.append(future)
 
-            # Wait for both to complete and collect results
-            start_time_1, result = future1.result()
-            inference_time = int((time.time() - start_time_1) * 1000)
-            result['inference_time_ms'] = inference_time
-            result['image'] = image_base64
+            # Wait for all to complete and collect results
+            results = {}
+            for idx, future in enumerate(futures):
+                start_time, result, label = future.result()
+                inference_time = int((time.time() - start_time) * 1000)
+                result['inference_time_ms'] = inference_time
+                result['image'] = image_base64
+                result['label'] = label
+                results[f'model{idx + 1}'] = result
 
-            start_time_2, result_2 = future2.result()
-            inference_time_2 = int((time.time() - start_time_2) * 1000)
-            result_2['inference_time_ms'] = inference_time_2
-            result_2['image'] = image_base64
+                add_log(f'{label} prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms, overlay: {"yes" if result.get("overlay") else "no"})')
 
-        add_log(f'Model 1 prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms)')
-        add_log(f'Model 2 prediction: {"ANOMALY" if result_2["is_anomaly"] else "NORMAL"} (score: {result_2["anomaly_score"]:.3f}, time: {inference_time_2}ms)')
-
-        # Return both results
-        return jsonify({
-            'model1': result,
-            'model2': result_2
-        })
+        # Return all results
+        return jsonify(results)
     except Exception as error:
         add_log(f'Single image capture failed: {error}', 'ERROR')
         # Provide a more detailed error response
@@ -559,14 +614,16 @@ def startup():
     try:
         init_directories()
 
-        try:
-            health = torchserve_client.check_health()
-            if health.get('healthy'):
-                add_log(f'Connected to TorchServe at {BASE_URL}')
-            else:
-                add_log(f'Warning: TorchServe not healthy at {BASE_URL}', 'WARN')
-        except:
-            add_log(f'Warning: TorchServe not reachable at {BASE_URL}', 'WARN')
+        # Check health of all models
+        for model in MODELS:
+            try:
+                health = model['client'].check_health()
+                if health.get('healthy'):
+                    add_log(f'Connected to {model["label"]} at {model["url"]}')
+                else:
+                    add_log(f'Warning: {model["label"]} not healthy at {model["url"]}', 'WARN')
+            except:
+                add_log(f'Warning: {model["label"]} not reachable at {model["url"]}', 'WARN')
 
         add_log(f'Web server running on port {PORT}')
         add_log(f'Access at: http://localhost:{PORT}')
