@@ -183,22 +183,14 @@
 
 				<!-- Test Image & Result -->
 				<div id="captureResult" class="hidden capture-result">
-					<div class="capture-grid">
-						<div class="capture-image-box">
-							<h3 class="capture-title">Uploaded Image</h3>
-							<img id="capturedImage" src="" alt="Uploaded frame" class="captured-image">
-						</div>
+					<!-- Original Image at the top -->
+					<div class="capture-image-box" style="margin-bottom: 20px;">
+						<h3 class="capture-title">Uploaded Image</h3>
+						<img id="capturedImage" src="" alt="Uploaded frame" class="captured-image">
+					</div>
 
-						<div class="capture-image-box">
-							<h3 class="capture-title">Model 1 - Heatmap</h3>
-							<img id="capturedImageOverlay1" src="" alt="Model 1 overlay" class="captured-image">
-						</div>
-
-						<div class="capture-image-box">
-							<h3 class="capture-title">Model 2 - Heatmap</h3>
-							<img id="capturedImageOverlay2" src="" alt="Model 2 overlay" class="captured-image">
-						</div>
-
+					<!-- Model 1 Results -->
+					<div class="model-result-row">
 						<div class="prediction-result-box">
 							<h3 class="result-title">
 								<span class="icon">analytics</span>
@@ -220,6 +212,14 @@
 							</div>
 						</div>
 
+						<div class="capture-image-box" id="overlay1Box" style="display: none;">
+							<h3 class="capture-title">Model 1 - Heatmap</h3>
+							<img id="capturedImageOverlay1" src="" alt="Model 1 overlay" class="captured-image">
+						</div>
+					</div>
+
+					<!-- Model 2 Results -->
+					<div class="model-result-row">
 						<div class="prediction-result-box">
 							<h3 class="result-title">
 								<span class="icon">analytics</span>
@@ -239,6 +239,11 @@
 									<div class="result-value result-value-secondary" id="inferenceTime2">-</div>
 								</div>
 							</div>
+						</div>
+
+						<div class="capture-image-box" id="overlay2Box" style="display: none;">
+							<h3 class="capture-title">Model 2 - Heatmap</h3>
+							<img id="capturedImageOverlay2" src="" alt="Model 2 overlay" class="captured-image">
 						</div>
 					</div>
 				</div>

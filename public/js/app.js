@@ -228,26 +228,43 @@ async function handleTestImageUpload(file) {
 // ============================================================================
 
 function displayPredictionResult(result1, result2) {
+    console.log('Model 1 result:', {
+        has_overlay: !!result1.overlay,
+        overlay_length: result1.overlay ? result1.overlay.length : 0,
+        overlay_preview: result1.overlay ? result1.overlay.substring(0, 50) : 'none'
+    });
+    console.log('Model 2 result:', {
+        has_overlay: !!result2.overlay,
+        overlay_length: result2.overlay ? result2.overlay.length : 0,
+        overlay_preview: result2.overlay ? result2.overlay.substring(0, 50) : 'none'
+    });
+
     // Display original image
     const capturedImageEl = document.getElementById('capturedImage');
     capturedImageEl.src = result1.image;
 
     // Display Model 1 overlay/heatmap if available
+    const overlay1Box = document.getElementById('overlay1Box');
     const overlay1El = document.getElementById('capturedImageOverlay1');
     if (result1.overlay) {
         overlay1El.src = `data:image/png;base64,${result1.overlay}`;
-        overlay1El.parentElement.style.display = 'block';
+        overlay1Box.style.display = 'block';
+        console.log('Model 1 overlay displayed');
     } else {
-        overlay1El.parentElement.style.display = 'none';
+        overlay1Box.style.display = 'none';
+        console.log('Model 1 overlay not available');
     }
 
     // Display Model 2 overlay/heatmap if available
+    const overlay2Box = document.getElementById('overlay2Box');
     const overlay2El = document.getElementById('capturedImageOverlay2');
     if (result2.overlay) {
         overlay2El.src = `data:image/png;base64,${result2.overlay}`;
-        overlay2El.parentElement.style.display = 'block';
+        overlay2Box.style.display = 'block';
+        console.log('Model 2 overlay displayed');
     } else {
-        overlay2El.parentElement.style.display = 'none';
+        overlay2Box.style.display = 'none';
+        console.log('Model 2 overlay not available');
     }
 
     // Show prediction result for Model 1

@@ -84,19 +84,17 @@ class CameraService:
 
         try:
             if self.is_raspberry_pi_camera():
-                # Use rpicam-jpeg for Pi camera with comprehensive settings
+                # Use rpicam-jpeg for Pi camera with camera's native resolution (no resizing)
+                # DO NOT specify --width or --height to use camera's default settings
                 cmd = [
                     'rpicam-jpeg',
                     '--output', temp_file,
-                    # '--timeout', '0',  # 2 seconds timeout, matching Node.js command
                     '-v', '2',  # Verbose output
                     '--camera', '0',  # Explicitly select camera 0
-                    # '-q', '93',  # Set JPEG quality to 93 (default)
-                    # '--width', '4608',
-                    # '--height', '2592',
                     '--immediate'  # Capture immediately without preview
                 ]
                 print(f"Executing command: {' '.join(cmd)}")  # Debug print
+                print(f"Capturing at camera's native resolution (no resizing)")  # Debug print
 
                 try:
                     result = subprocess.run(cmd,
