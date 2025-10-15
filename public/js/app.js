@@ -169,9 +169,10 @@ async function takeTestImage() {
         const result = await response.json();
 
         if (response.ok) {
-            // Assuming the response contains the image data directly
-            result.image = `data:image/jpeg;base64,${result.image}`;
-            displayPredictionResult(result);
+            // Response now contains model1 and model2
+            result.model1.image = `data:image/jpeg;base64,${result.model1.image}`;
+            result.model2.image = `data:image/jpeg;base64,${result.model2.image}`;
+            displayPredictionResult(result.model1, result.model2);
             showAlert('Image captured and analyzed!', 'success');
             document.getElementById('step2').classList.add('completed');
         } else {
@@ -206,8 +207,9 @@ async function handleTestImageUpload(file) {
             // Create data URL from uploaded file for display
             const reader = new FileReader();
             reader.onload = function(e) {
-                result.image = e.target.result;
-                displayPredictionResult(result);
+                result.model1.image = e.target.result;
+                result.model2.image = e.target.result;
+                displayPredictionResult(result.model1, result.model2);
             };
             reader.readAsDataURL(file);
 
@@ -225,23 +227,23 @@ async function handleTestImageUpload(file) {
 // DISPLAY PREDICTION RESULT
 // ============================================================================
 
-function displayPredictionResult(result) {
+function displayPredictionResult(result1, result2) {
     // Show captured image or overlay if available
     const capturedImageEl = document.getElementById('capturedImage');
-    if (result.overlay) {
+    if (result1.overlay) {
         // Display overlay if it was generated
-        capturedImageEl.src = `data:image/png;base64,${result.overlay}`;
+        capturedImageEl.src = `data:image/png;base64,${result1.overlay}`;
     } else {
         // Display original image
-        capturedImageEl.src = result.image;
+        capturedImageEl.src = result1.image;
     }
 
-    // Show prediction result
+    // Show prediction result for Model 1
     document.getElementById('captureResult').classList.remove('hidden');
-    document.getElementById('anomalyScore').textContent = result.anomaly_score.toFixed(3);
+    document.getElementById('anomalyScore').textContent = result1.anomaly_score.toFixed(3);
 
     const classEl = document.getElementById('anomalyClass');
-    if (result.is_anomaly) {
+    if (result1.is_anomaly) {
         classEl.innerHTML = '<span class="icon icon-error">error</span> ANOMALY';
         classEl.style.color = 'var(--danger)';
     } else {
@@ -249,7 +251,21 @@ function displayPredictionResult(result) {
         classEl.style.color = 'var(--success)';
     }
 
-    document.getElementById('inferenceTime').textContent = result.inference_time_ms.toFixed(0) + ' ms';
+    document.getElementById('inferenceTime').textContent = result1.inference_time_ms.toFixed(0) + ' ms';
+
+    // Show prediction result for Model 2
+    document.getElementById('anomalyScore2').textContent = result2.anomaly_score.toFixed(3);
+
+    const classEl2 = document.getElementById('anomalyClass2');
+    if (result2.is_anomaly) {
+        classEl2.innerHTML = '<span class="icon icon-error">error</span> ANOMALY';
+        classEl2.style.color = 'var(--danger)';
+    } else {
+        classEl2.innerHTML = '<span class="icon icon-success">check_circle</span> NORMAL';
+        classEl2.style.color = 'var(--success)';
+    }
+
+    document.getElementById('inferenceTime2').textContent = result2.inference_time_ms.toFixed(0) + ' ms';
 
     // Scroll to result
     document.getElementById('captureResult').scrollIntoView({

@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
 import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from services.camera_service import CameraService
 from services.torchserve_client import TorchServeClient
@@ -23,6 +24,9 @@ DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.path.dirname(__file__), '.
 BASE_URL = os.environ.get('PREDICTION_SERVICE_URL', 'https://anomalib-serving-360893797389.europe-central2.run.app')
 # BASE_URL = os.environ.get('PREDICTION_SERVICE_URL', 'http://localhost:8080')
 
+# Second model endpoint
+BASE_URL_2 = os.environ.get('PREDICTION_SERVICE_URL_2', 'https://anomalib-l3-l4-360893797389.europe-west4.run.app')
+
 
 # Initialize services
 camera_service = CameraService(
@@ -33,6 +37,7 @@ camera_service = CameraService(
 )
 
 torchserve_client = TorchServeClient(BASE_URL)
+torchserve_client_2 = TorchServeClient(BASE_URL_2)
 collection_scheduler = CollectionScheduler(camera_service, DATA_DIR)
 
 # In-memory state
@@ -118,6 +123,12 @@ def get_status():
         except:
             pass
 
+        torchserve_health_2 = None
+        try:
+            torchserve_health_2 = torchserve_client_2.check_health()
+        except:
+            pass
+
         config = {}
         try:
             config_path = os.path.join(CONFIG_DIR, 'settings.json')
@@ -132,11 +143,13 @@ def get_status():
             'configured': len(config) > 0,
             'modelInfo': model_info,
             'torchserveHealthy': torchserve_health.get('healthy', False) if torchserve_health else False,
+            'torchserveHealthy2': torchserve_health_2.get('healthy', False) if torchserve_health_2 else False,
             'lastPrediction': system_state['last_prediction'],
             'uptime': 0,  # Python doesn't have process.uptime() equivalent
             'logs': system_state['logs'][-10:],
             'config': config,
-            'predictionServiceUrl': BASE_URL
+            'predictionServiceUrl': BASE_URL,
+            'predictionServiceUrl2': BASE_URL_2
         })
     except Exception as error:
         return jsonify({'error': str(error)}), 500
@@ -179,18 +192,40 @@ def test_prediction():
         include_overlay = request.form.get('includeOverlay', 'false').lower() == 'true'
 
         import time
-        start_time = time.time()
-        result = torchserve_client.predict(image_buffer, {
-            'threshold': threshold,
-            'include_overlay': include_overlay
+
+        # Run both predictions in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            # Submit both prediction tasks
+            future1 = executor.submit(
+                lambda: (time.time(), torchserve_client.predict(image_buffer, {
+                    'threshold': threshold,
+                    'include_overlay': include_overlay
+                }))
+            )
+            future2 = executor.submit(
+                lambda: (time.time(), torchserve_client_2.predict(image_buffer, {
+                    'threshold': threshold,
+                    'include_overlay': include_overlay
+                }))
+            )
+
+            # Wait for both to complete and collect results
+            start_time_1, result = future1.result()
+            inference_time = int((time.time() - start_time_1) * 1000)
+            result['inference_time_ms'] = inference_time
+
+            start_time_2, result_2 = future2.result()
+            inference_time_2 = int((time.time() - start_time_2) * 1000)
+            result_2['inference_time_ms'] = inference_time_2
+
+        add_log(f'Model 1 prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms)')
+        add_log(f'Model 2 prediction: {"ANOMALY" if result_2["is_anomaly"] else "NORMAL"} (score: {result_2["anomaly_score"]:.3f}, time: {inference_time_2}ms)')
+
+        # Return both results
+        return jsonify({
+            'model1': result,
+            'model2': result_2
         })
-        inference_time = int((time.time() - start_time) * 1000)
-
-        result['inference_time_ms'] = inference_time
-
-        add_log(f'Test prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms)')
-
-        return jsonify(result)
     except Exception as error:
         add_log(f'Prediction failed: {error}', 'ERROR')
         return jsonify({'error': str(error)}), 500
@@ -342,22 +377,45 @@ def take_single_image():
         include_overlay = data.get('includeOverlay', False)
 
         import time
-        start_time = time.time()
-        result = torchserve_client.predict(image_buffer, {
-            'threshold': threshold,
-            'include_overlay': include_overlay
-        })
-        inference_time = int((time.time() - start_time) * 1000)
-
-        result['inference_time_ms'] = inference_time
 
         # Base64 encode the image to match frontend expectations
         image_base64 = base64.b64encode(image_buffer).decode('utf-8')
-        result['image'] = image_base64
 
-        add_log(f'Prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms)')
+        # Run both predictions in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            # Submit both prediction tasks
+            future1 = executor.submit(
+                lambda: (time.time(), torchserve_client.predict(image_buffer, {
+                    'threshold': threshold,
+                    'include_overlay': include_overlay
+                }))
+            )
+            future2 = executor.submit(
+                lambda: (time.time(), torchserve_client_2.predict(image_buffer, {
+                    'threshold': threshold,
+                    'include_overlay': include_overlay
+                }))
+            )
 
-        return jsonify(result)
+            # Wait for both to complete and collect results
+            start_time_1, result = future1.result()
+            inference_time = int((time.time() - start_time_1) * 1000)
+            result['inference_time_ms'] = inference_time
+            result['image'] = image_base64
+
+            start_time_2, result_2 = future2.result()
+            inference_time_2 = int((time.time() - start_time_2) * 1000)
+            result_2['inference_time_ms'] = inference_time_2
+            result_2['image'] = image_base64
+
+        add_log(f'Model 1 prediction: {"ANOMALY" if result["is_anomaly"] else "NORMAL"} (score: {result["anomaly_score"]:.3f}, time: {inference_time}ms)')
+        add_log(f'Model 2 prediction: {"ANOMALY" if result_2["is_anomaly"] else "NORMAL"} (score: {result_2["anomaly_score"]:.3f}, time: {inference_time_2}ms)')
+
+        # Return both results
+        return jsonify({
+            'model1': result,
+            'model2': result_2
+        })
     except Exception as error:
         add_log(f'Single image capture failed: {error}', 'ERROR')
         # Provide a more detailed error response

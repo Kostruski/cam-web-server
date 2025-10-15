@@ -107,7 +107,7 @@ class TorchServeClient:
                 self.predict_url,
                 headers={'Content-Type': 'application/json'},
                 json=payload,  # Use json parameter instead of data + json.dumps
-                timeout=120  # Increased to 2 minutes for remote servers
+                timeout=600  # Increased to 10 minutes for cold starts
             )
 
             print(f'[TorchServe] Response status: {response.status_code}')
@@ -127,7 +127,7 @@ class TorchServeClient:
             raise Exception(f'Cannot connect to TorchServe at {self.predict_url}. Is the prediction service running?')
         except requests.exceptions.Timeout as error:
             print(f'[TorchServe] Request timeout: {error}')
-            raise Exception('Prediction request timed out after 2 minutes. The remote server may be cold-starting or overloaded.')
+            raise Exception('Prediction request timed out after 10 minutes. The remote server may be cold-starting or overloaded.')
         except Exception as error:
             print(f'[TorchServe] Prediction failed: {error}')
             raise Exception(f'Prediction failed: {error}')
